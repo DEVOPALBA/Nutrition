@@ -137,9 +137,9 @@ details.box:not([open]) summary::after{content:"▶"}
 
 .quickActions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 18px}
 .quickBtn{border:none;border-radius:16px;padding:14px 8px;font-weight:800;background:#111827;color:#fff}
-.fab{position:fixed;right:18px;bottom:18px;width:62px;height:62px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:34px;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.fab{position:fixed;right:18px;bottom:18px;width:62px;height:62px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:34px;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.25);padding:0;margin:0}
 .fabMenu{display:none;position:fixed;right:18px;bottom:90px;z-index:9999;gap:10px;flex-direction:column}
-.fabItem{border:none;border-radius:14px;padding:12px 14px;background:#fff;color:#111827;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.fabItem{border:none;border-radius:14px;padding:12px 14px;background:#fff;color:#111827;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.18);width:auto;margin:0}
 
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
 </style>
@@ -188,9 +188,9 @@ window.zxingReady = true;
 
 
 <div class="quickActions">
-<button class="quickBtn" id="quickScan">📷<br>Scanner</button>
-<button class="quickBtn" id="quickMeal">🍽️<br>Mahlzeit</button>
-<button class="quickBtn" id="quickTemplate">⭐<br>Vorlagen</button>
+<button class="quickBtn" id="quickScan" type="button">📷<br>Scanner</button>
+<button class="quickBtn" id="quickMeal" type="button">🍽️<br>Mahlzeit</button>
+<button class="quickBtn" id="quickTemplate" type="button">⭐<br>Vorlagen</button>
 </div>
 <section id="dashboard">
 <div class="card"><div class="title">🥩 Protein</div><div class="row"><span id="proteinText"></span><span id="proteinProzent"></span></div><div class="bar"><div class="fill" id="proteinBar"></div><div class="barText" id="proteinBarText"></div></div><div class="rest" id="proteinRest"></div></div>
@@ -198,7 +198,7 @@ window.zxingReady = true;
 <div class="card"><div class="title">🍞 Kohlenhydrate</div><div class="row"><span id="kohlenhydrateText"></span><span id="kohlenhydrateProzent"></span></div><div class="bar"><div class="fill" id="kohlenhydrateBar"></div><div class="barText" id="kohlenhydrateBarText"></div></div><div class="rest" id="kohlenhydrateRest"></div></div>
 </section>
 
-<details class="box" open>
+<details class="box" id="sectionMeal" open>
 <summary>➕ Mahlzeit hinzufügen</summary>
 <div class="detailsInner">
 <label>Beschreibung</label><input id="inName" type="text" placeholder="z. B. Frühstück, Döner, Abendessen">
@@ -216,7 +216,7 @@ window.zxingReady = true;
 </div>
 </details>
 
-<details class="box" open>
+<details class="box" id="sectionTemplates" open>
 <summary>⚡ Schnelleingaben</summary>
 <div class="detailsInner">
 <div id="templates"></div>
@@ -271,7 +271,7 @@ Die Datei bleibt lokal auf deinem Gerät.
 </details>
 
 
-<details class="box">
+<details class="box" id="sectionScanner">
 <summary>📷 Barcode-Scanner</summary>
 <div class="detailsInner">
 
@@ -303,7 +303,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 
 
-<details class="box">
+<details class="box" id="sectionWeight">
 <summary>⚖️ Gewicht</summary>
 <div class="detailsInner">
 <label>Gewicht heute</label>
@@ -330,9 +330,18 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 </details>
 </main>
 
+<div class="fabMenu" id="fabMenu">
+<button class="fabItem" id="fabScan" type="button">📷 Scanner</button>
+<button class="fabItem" id="fabMeal" type="button">🍽️ Mahlzeit</button>
+<button class="fabItem" id="fabTemplate" type="button">⭐ Vorlagen</button>
+<button class="fabItem" id="fabWeight" type="button">⚖️ Gewicht</button>
+</div>
+<button class="fab" id="fabMain" type="button">+</button>
+
+
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v21";
+var KEY="ernaehrungs_dashboard_app_v21_fixed";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -570,35 +579,7 @@ function saveWeight(){
  if(!found)data.weights.push({date:data.date,weight:w});
  data.weights.sort(function(a,b){return a.date>b.date?1:-1});
  while(data.weights.length>30)data.weights.shift();
- 
-function openDetailsBySummary(text){
- var sums=document.querySelectorAll("summary");
- for(var i=0;i<sums.length;i++){
-   if((sums[i].textContent||"").indexOf(text)>=0){
-      var d=sums[i].parentElement;
-      if(d && d.tagName==="DETAILS") d.open=true;
-      d.scrollIntoView({behavior:"smooth",block:"start"});
-      return;
-   }
- }
-}
-function toggleFab(){
- var m=E("fabMenu");
- m.style.display=(m.style.display==="flex"?"none":"flex");
-}
-
-
-E("quickScan").addEventListener("click",function(){openDetailsBySummary("Barcode");});
-E("quickMeal").addEventListener("click",function(){openDetailsBySummary("Mahlzeit");});
-E("quickTemplate").addEventListener("click",function(){openDetailsBySummary("Vorlagen");});
-
-E("fabMain").addEventListener("click",toggleFab);
-E("fabScan").addEventListener("click",function(){toggleFab();openDetailsBySummary("Barcode");});
-E("fabMeal").addEventListener("click",function(){toggleFab();openDetailsBySummary("Mahlzeit");});
-E("fabTemplate").addEventListener("click",function(){toggleFab();openDetailsBySummary("Vorlagen");});
-E("fabWeight").addEventListener("click",function(){toggleFab();openDetailsBySummary("Gewicht");});
-
-render();
+ render();
  show("Gewicht gespeichert");
 }
 
@@ -1041,6 +1022,24 @@ function importBackup(){
  reader.readAsText(file);
 }
 
+
+function jumpToSection(id){
+ var section=E(id);
+ if(!section)return;
+ if(section.tagName==="DETAILS")section.open=true;
+ var y=section.getBoundingClientRect().top+window.scrollY-80;
+ window.scrollTo({top:y,behavior:"smooth"});
+}
+function toggleFab(){
+ var m=E("fabMenu");
+ if(!m)return;
+ m.style.display=(m.style.display==="flex"?"none":"flex");
+}
+function closeFab(){
+ var m=E("fabMenu");
+ if(m)m.style.display="none";
+}
+
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[c]})}
 E("btnAdd").addEventListener("click",add);
 E("btnUndo").addEventListener("click",undo);
@@ -1056,17 +1055,16 @@ E("btnStopScanner").addEventListener("click",stopScanner);
 E("btnLookupBarcode").addEventListener("click",function(){lookupBarcode();});
 E("productPortion").addEventListener("input",renderProductPreview);
 E("btnAddProduct").addEventListener("click",addProductMeal);
+E("quickScan").addEventListener("click",function(){jumpToSection("sectionScanner");});
+E("quickMeal").addEventListener("click",function(){jumpToSection("sectionMeal");});
+E("quickTemplate").addEventListener("click",function(){jumpToSection("sectionTemplates");});
+E("fabMain").addEventListener("click",toggleFab);
+E("fabScan").addEventListener("click",function(){closeFab();jumpToSection("sectionScanner");});
+E("fabMeal").addEventListener("click",function(){closeFab();jumpToSection("sectionMeal");});
+E("fabTemplate").addEventListener("click",function(){closeFab();jumpToSection("sectionTemplates");});
+E("fabWeight").addEventListener("click",function(){closeFab();jumpToSection("sectionWeight");});
 render();
 })();
 </script>
-
-<div class="fabMenu" id="fabMenu">
-<button class="fabItem" id="fabScan">📷 Scanner</button>
-<button class="fabItem" id="fabMeal">🍽️ Mahlzeit</button>
-<button class="fabItem" id="fabTemplate">⭐ Vorlagen</button>
-<button class="fabItem" id="fabWeight">⚖️ Gewicht</button>
-</div>
-<button class="fab" id="fabMain">+</button>
 </body>
-
 </html>
