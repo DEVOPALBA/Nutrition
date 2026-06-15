@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v17</title>
+<title>Ernährungs-Dashboard v18</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -122,6 +122,11 @@ details.box:not([open]) summary::after{content:"▶"}
 .quickStatValue{font-size:22px;font-weight:900;margin-top:4px}
 @media(max-width:380px){.quickStats{grid-template-columns:1fr}}
 
+
+.editSmall{width:auto;margin:0;padding:8px 11px;border-radius:10px;background:#e5e7eb;color:#111827;font-size:13px}
+.editNotice{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#fef3c7;color:#92400e;text-align:center;font-weight:800}
+.historyActions{display:flex;gap:8px;align-items:center}
+
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
 </style>
 </head>
@@ -179,6 +184,8 @@ details.box:not([open]) summary::after{content:"▶"}
 </div>
 <button class="primary" id="btnAdd" type="button">Mahlzeit hinzufügen</button>
 <button class="secondary" id="btnUndo" type="button">↩ Letzte Mahlzeit rückgängig</button>
+<div class="editNotice" id="editNotice">Bearbeitungsmodus aktiv</div>
+<button class="secondary" id="btnCancelEdit" type="button" style="display:none">Bearbeiten abbrechen</button>
 <div class="message" id="meldung"></div>
 </div>
 </details>
@@ -279,7 +286,7 @@ Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier d
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v17";
+var KEY="ernaehrungs_dashboard_app_v18";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -334,6 +341,7 @@ function load(){
  return d;
 }
 var data=load();save();
+var editingMealIndex=null;
 
 function recalc(){
  data.values=emptyValues();
@@ -418,12 +426,14 @@ function renderHistory(){
  for(var i=data.meals.length-1;i>=0;i--){
   var m=data.meals[i], name=m.name?escapeHtml(m.name):"Mahlzeit", item=document.createElement("div");
   item.className="historyItem";
-  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+'</span></span><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div>'+
+  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+'</span></span><div class="historyActions"><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></div>'+
   '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
   h.appendChild(item);
  }
  var buttons=h.querySelectorAll("button[data-index]");
  for(var j=0;j<buttons.length;j++){buttons[j].onclick=function(){deleteMeal(parseInt(this.getAttribute("data-index"),10))}}
+ var editButtons=h.querySelectorAll("button[data-edit]");
+ for(var e=0;e<editButtons.length;e++){editButtons[e].onclick=function(){editMeal(parseInt(this.getAttribute("data-edit"),10))}}
 }
 function getWeekWithToday(){
  var arr=data.week.slice();
@@ -583,8 +593,49 @@ function render(){
 function show(t){E("meldung").textContent=t;E("meldung").style.display="block";setTimeout(function(){E("meldung").style.display="none"},1300)}
 function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtein").value="";E("inFett").value="";E("inKohlenhydrate").value=""}
 function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E("tplProtein").value="";E("tplFett").value="";E("tplKohlenhydrate").value=""}
+
+function editMeal(index){
+ if(index<0||index>=data.meals.length)return;
+ var m=data.meals[index];
+ editingMealIndex=index;
+ E("inName").value=m.name||"";
+ E("inKalorien").value=nice(m.kalorien);
+ E("inProtein").value=nice(m.protein);
+ E("inFett").value=nice(m.fett);
+ E("inKohlenhydrate").value=nice(m.kohlenhydrate);
+ E("btnAdd").textContent="Änderungen speichern";
+ E("btnCancelEdit").style.display="block";
+ E("editNotice").style.display="block";
+ E("editNotice").textContent="Bearbeitungsmodus: "+(m.name||"Mahlzeit")+" wird bearbeitet";
+ window.scrollTo({top:E("btnAdd").getBoundingClientRect().top+window.scrollY-260,behavior:"smooth"});
+}
+function exitEditMode(){
+ E("btnAdd").textContent="Mahlzeit hinzufügen";
+ E("btnCancelEdit").style.display="none";
+ E("editNotice").style.display="none";
+}
+function cancelEdit(){
+ editingMealIndex=null;
+ clearInputs();
+ exitEditMode();
+ show("Bearbeitung abgebrochen");
+}
+
 function add(){
  var m={id:uid(),time:nowTime(),name:String(E("inName").value||"").trim(),kalorien:val("inKalorien"),protein:val("inProtein"),fett:val("inFett"),kohlenhydrate:val("inKohlenhydrate")};
+
+ if(editingMealIndex!==null && editingMealIndex>=0 && editingMealIndex<data.meals.length){
+  m.id=data.meals[editingMealIndex].id||uid();
+  m.time=data.meals[editingMealIndex].time||nowTime();
+  data.meals[editingMealIndex]=m;
+  editingMealIndex=null;
+  exitEditMode();
+  clearInputs();
+  render();
+  show("Mahlzeit aktualisiert");
+  return;
+ }
+
  data.meals.push(m);clearInputs();render();show("Mahlzeit hinzugefügt");
 }
 function addTemplateMeal(index){
@@ -605,11 +656,16 @@ function deleteTemplate(index){
 }
 function undo(){
  if(!data.meals.length){alert("Es gibt keine Mahlzeit zum Rückgängig machen.");return}
- data.meals.pop();render();show("Letzte Mahlzeit gelöscht");
+ data.meals.pop(); if(editingMealIndex!==null){editingMealIndex=null;exitEditMode();clearInputs();} render();show("Letzte Mahlzeit gelöscht");
 }
 function deleteMeal(index){
  if(index<0||index>=data.meals.length)return;
- data.meals.splice(index,1);render();show("Mahlzeit gelöscht");
+ data.meals.splice(index,1);
+ if(editingMealIndex!==null){
+  if(editingMealIndex===index){editingMealIndex=null;exitEditMode();clearInputs();}
+  else if(editingMealIndex>index){editingMealIndex--;}
+ }
+ render();show("Mahlzeit gelöscht");
 }
 function goals(){data.goals.kalorien=val("zielKalorien");data.goals.protein=val("zielProtein");data.goals.fett=val("zielFett");data.goals.kohlenhydrate=val("zielKohlenhydrate");render();show("Ziele gespeichert")}
 function reset(){if(!confirm("Tageswerte und heutige Mahlzeiten wirklich zurücksetzen?"))return;data.date=today();data.values=emptyValues();data.meals=[];render();show("Tageswerte zurückgesetzt")}
@@ -766,6 +822,7 @@ E("btnSaveTemplate").addEventListener("click",saveTemplate);
 E("btnSaveWeight").addEventListener("click",saveWeight);
 E("btnExportBackup").addEventListener("click",createBackup);
 E("btnImportBackup").addEventListener("click",importBackup);
+E("btnCancelEdit").addEventListener("click",cancelEdit);
 render();
 })();
 </script>
