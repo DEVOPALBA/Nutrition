@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v21</title>
+<title>Ernährungs-Dashboard v22</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -135,8 +135,6 @@ details.box:not([open]) summary::after{content:"▶"}
 .smallNote{font-size:13px;color:#6b7280;line-height:1.45;margin-top:8px}
 
 
-.quickActions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 18px}
-.quickBtn{border:none;border-radius:16px;padding:14px 8px;font-weight:800;background:#111827;color:#fff}
 .fab{position:fixed;right:18px;bottom:18px;width:62px;height:62px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:34px;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.25);padding:0;margin:0}
 .fabMenu{display:none;position:fixed;right:18px;bottom:90px;z-index:9999;gap:10px;flex-direction:column}
 .fabItem{border:none;border-radius:14px;padding:12px 14px;background:#fff;color:#111827;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.18);width:auto;margin:0}
@@ -187,11 +185,6 @@ window.zxingReady = true;
 </section>
 
 
-<div class="quickActions">
-<button class="quickBtn" id="quickScan" type="button">📷<br>Scanner</button>
-<button class="quickBtn" id="quickMeal" type="button">🍽️<br>Mahlzeit</button>
-<button class="quickBtn" id="quickTemplate" type="button">⭐<br>Vorlagen</button>
-</div>
 <section id="dashboard">
 <div class="card"><div class="title">🥩 Protein</div><div class="row"><span id="proteinText"></span><span id="proteinProzent"></span></div><div class="bar"><div class="fill" id="proteinBar"></div><div class="barText" id="proteinBarText"></div></div><div class="rest" id="proteinRest"></div></div>
 <div class="card"><div class="title">🥑 Fett</div><div class="row"><span id="fettText"></span><span id="fettProzent"></span></div><div class="bar"><div class="fill" id="fettBar"></div><div class="barText" id="fettBarText"></div></div><div class="rest" id="fettRest"></div></div>
@@ -331,7 +324,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 </main>
 
 <div class="fabMenu" id="fabMenu">
-<button class="fabItem" id="fabScan" type="button">📷 Scanner</button>
+<button class="fabItem" id="fabScan" type="button">📷 Scanner starten</button>
 <button class="fabItem" id="fabMeal" type="button">🍽️ Mahlzeit</button>
 <button class="fabItem" id="fabTemplate" type="button">⭐ Vorlagen</button>
 <button class="fabItem" id="fabWeight" type="button">⚖️ Gewicht</button>
@@ -341,7 +334,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v21_fixed";
+var KEY="ernaehrungs_dashboard_app_v22";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -1030,6 +1023,15 @@ function jumpToSection(id){
  var y=section.getBoundingClientRect().top+window.scrollY-80;
  window.scrollTo({top:y,behavior:"smooth"});
 }
+
+function jumpToScannerAndStart(){
+ closeFab();
+ jumpToSection("sectionScanner");
+ window.setTimeout(function(){
+  try{ startScanner(); }catch(e){}
+ }, 450);
+}
+
 function toggleFab(){
  var m=E("fabMenu");
  if(!m)return;
@@ -1055,11 +1057,8 @@ E("btnStopScanner").addEventListener("click",stopScanner);
 E("btnLookupBarcode").addEventListener("click",function(){lookupBarcode();});
 E("productPortion").addEventListener("input",renderProductPreview);
 E("btnAddProduct").addEventListener("click",addProductMeal);
-E("quickScan").addEventListener("click",function(){jumpToSection("sectionScanner");});
-E("quickMeal").addEventListener("click",function(){jumpToSection("sectionMeal");});
-E("quickTemplate").addEventListener("click",function(){jumpToSection("sectionTemplates");});
 E("fabMain").addEventListener("click",toggleFab);
-E("fabScan").addEventListener("click",function(){closeFab();jumpToSection("sectionScanner");});
+E("fabScan").addEventListener("click",jumpToScannerAndStart);
 E("fabMeal").addEventListener("click",function(){closeFab();jumpToSection("sectionMeal");});
 E("fabTemplate").addEventListener("click",function(){closeFab();jumpToSection("sectionTemplates");});
 E("fabWeight").addEventListener("click",function(){closeFab();jumpToSection("sectionWeight");});
