@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v18</title>
+<title>Ernährungs-Dashboard v19</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -126,6 +126,13 @@ details.box:not([open]) summary::after{content:"▶"}
 .editSmall{width:auto;margin:0;padding:8px 11px;border-radius:10px;background:#e5e7eb;color:#111827;font-size:13px}
 .editNotice{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#fef3c7;color:#92400e;text-align:center;font-weight:800}
 .historyActions{display:flex;gap:8px;align-items:center}
+
+
+.scannerVideo{width:100%;border-radius:14px;background:#111827;margin-top:10px;display:none}
+.productPreview{display:none;margin-top:12px;border:1px solid #e5e7eb;border-radius:14px;background:#f9fafb;padding:12px}
+.productTitle{font-size:17px;font-weight:900;margin-bottom:6px}
+.productValues{font-size:14px;color:#374151;line-height:1.6}
+.smallNote{font-size:13px;color:#6b7280;line-height:1.45;margin-top:8px}
 
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
 </style>
@@ -244,17 +251,36 @@ Die Datei bleibt lokal auf deinem Gerät.
 </div>
 </details>
 
+
 <details class="box">
 <summary>📷 Barcode-Scanner</summary>
 <div class="detailsInner">
-<div class="barcodeBox">
-<div class="barcodeIcon">📷</div>
-<b>Vorbereitet für Barcode-Scan</b><br>
-Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier die Kamera geöffnet und z. B. mit Open Food Facts nach Nährwerten gesucht werden.
+
+<button class="primary" id="btnStartScanner" type="button">Kamera-Scan starten</button>
+<button class="secondary" id="btnStopScanner" type="button" style="display:none">Scan stoppen</button>
+<video id="scannerVideo" class="scannerVideo" playsinline muted></video>
+
+<div class="smallNote">
+Falls der Kamera-Scan auf deinem Gerät nicht unterstützt wird, kannst du den Barcode manuell eingeben.
 </div>
-<button class="secondary" type="button" onclick="alert('Barcode-Scanner kommt in einer späteren Version. Dafür brauchen wir Kamera-Zugriff und eine Produktdatenbank.')">Barcode scannen</button>
+
+<label>Barcode manuell eingeben</label>
+<input id="barcodeInput" type="text" inputmode="numeric" placeholder="z. B. 4001234567890">
+<button class="secondary" id="btnLookupBarcode" type="button">Produkt suchen</button>
+
+<div class="productPreview" id="productPreview">
+<div class="productTitle" id="productTitle"></div>
+<div class="productValues" id="productValues"></div>
+
+<label>Portion in Gramm</label>
+<input id="productPortion" type="number" inputmode="decimal" placeholder="100">
+
+<button class="primary" id="btnAddProduct" type="button">Produkt als Mahlzeit hinzufügen</button>
+</div>
+
 </div>
 </details>
+
 
 
 <details class="box">
@@ -286,7 +312,7 @@ Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier d
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v18";
+var KEY="ernaehrungs_dashboard_app_v19";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -594,6 +620,144 @@ function show(t){E("meldung").textContent=t;E("meldung").style.display="block";s
 function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtein").value="";E("inFett").value="";E("inKohlenhydrate").value=""}
 function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E("tplProtein").value="";E("tplFett").value="";E("tplKohlenhydrate").value=""}
 
+
+var scannerStream=null;
+var scannerTimer=null;
+var scannedRecently=false;
+var currentProduct=null;
+
+function scannerSupported(){
+ return ("BarcodeDetector" in window);
+}
+function stopScanner(){
+ var video=E("scannerVideo");
+ if(scannerTimer){clearInterval(scannerTimer);scannerTimer=null;}
+ if(scannerStream){
+  var tracks=scannerStream.getTracks();
+  for(var i=0;i<tracks.length;i++){tracks[i].stop();}
+  scannerStream=null;
+ }
+ video.style.display="none";
+ E("btnStopScanner").style.display="none";
+ E("btnStartScanner").style.display="block";
+}
+async function startScanner(){
+ if(!scannerSupported()){
+  alert("Der native Barcode-Scanner wird von diesem Browser nicht unterstützt. Bitte Barcode manuell eingeben.");
+  return;
+ }
+ try{
+  var video=E("scannerVideo");
+  scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+  video.srcObject=scannerStream;
+  video.style.display="block";
+  E("btnStopScanner").style.display="block";
+  E("btnStartScanner").style.display="none";
+  await video.play();
+
+  var detector=new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]});
+  scannedRecently=false;
+
+  scannerTimer=setInterval(async function(){
+   if(scannedRecently)return;
+   try{
+    var codes=await detector.detect(video);
+    if(codes&&codes.length){
+     scannedRecently=true;
+     var code=codes[0].rawValue;
+     E("barcodeInput").value=code;
+     stopScanner();
+     lookupBarcode(code);
+    }
+   }catch(e){}
+  },700);
+ }catch(e){
+  alert("Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen oder Barcode manuell eingeben.");
+  stopScanner();
+ }
+}
+async function lookupBarcode(code){
+ code=String(code||"").trim();
+ if(!code){
+  code=String(E("barcodeInput").value||"").trim();
+ }
+ if(!code){
+  alert("Bitte Barcode eingeben.");
+  return;
+ }
+ try{
+  E("productPreview").style.display="none";
+  var url="https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,brands,nutriments,serving_quantity,serving_size";
+  var response=await fetch(url);
+  var json=await response.json();
+
+  if(!json||json.status!==1||!json.product){
+   alert("Produkt nicht gefunden.");
+   return;
+  }
+
+  var p=json.product;
+  var n=p.nutriments||{};
+  var kcal=Number(n["energy-kcal_100g"])||Number(n["energy-kcal"])||0;
+  var protein=Number(n["proteins_100g"])||0;
+  var fett=Number(n["fat_100g"])||0;
+  var kh=Number(n["carbohydrates_100g"])||0;
+
+  currentProduct={
+   code:code,
+   name:p.product_name||p.brands||("Produkt "+code),
+   kcal100:kcal,
+   protein100:protein,
+   fett100:fett,
+   kh100:kh
+  };
+
+  var serving=Number(p.serving_quantity)||100;
+  if(!serving||serving<=0)serving=100;
+  E("productPortion").value=serving;
+
+  renderProductPreview();
+ }catch(e){
+  alert("Produkt konnte nicht geladen werden. Bitte Internetverbindung prüfen.");
+ }
+}
+function renderProductPreview(){
+ if(!currentProduct)return;
+ var portion=Number(String(E("productPortion").value||"100").replace(",","."))||100;
+ var factor=portion/100;
+ var kcal=currentProduct.kcal100*factor;
+ var protein=currentProduct.protein100*factor;
+ var fett=currentProduct.fett100*factor;
+ var kh=currentProduct.kh100*factor;
+
+ E("productTitle").textContent=currentProduct.name;
+ E("productValues").innerHTML=
+  "Portion: <b>"+nice(portion)+" g</b><br>"+
+  "🔥 "+nice(kcal)+" kcal &nbsp; | &nbsp; 🥩 "+nice(protein)+" g Protein<br>"+
+  "🥑 "+nice(fett)+" g Fett &nbsp; | &nbsp; 🍞 "+nice(kh)+" g Kohlenhydrate";
+ E("productPreview").style.display="block";
+}
+function addProductMeal(){
+ if(!currentProduct){
+  alert("Bitte zuerst ein Produkt suchen.");
+  return;
+ }
+ var portion=Number(String(E("productPortion").value||"100").replace(",","."))||100;
+ var factor=portion/100;
+ var m={
+  id:uid(),
+  time:nowTime(),
+  name:currentProduct.name+" ("+nice(portion)+" g)",
+  kalorien:Math.round(currentProduct.kcal100*factor*10)/10,
+  protein:Math.round(currentProduct.protein100*factor*10)/10,
+  fett:Math.round(currentProduct.fett100*factor*10)/10,
+  kohlenhydrate:Math.round(currentProduct.kh100*factor*10)/10
+ };
+ data.meals.push(m);
+ render();
+ show("Produkt hinzugefügt");
+}
+
 function editMeal(index){
  if(index<0||index>=data.meals.length)return;
  var m=data.meals[index];
@@ -823,6 +987,11 @@ E("btnSaveWeight").addEventListener("click",saveWeight);
 E("btnExportBackup").addEventListener("click",createBackup);
 E("btnImportBackup").addEventListener("click",importBackup);
 E("btnCancelEdit").addEventListener("click",cancelEdit);
+E("btnStartScanner").addEventListener("click",startScanner);
+E("btnStopScanner").addEventListener("click",stopScanner);
+E("btnLookupBarcode").addEventListener("click",function(){lookupBarcode();});
+E("productPortion").addEventListener("input",renderProductPreview);
+E("btnAddProduct").addEventListener("click",addProductMeal);
 render();
 })();
 </script>
