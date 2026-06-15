@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v19</title>
+<title>Ernährungs-Dashboard v20</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -136,6 +136,13 @@ details.box:not([open]) summary::after{content:"▶"}
 
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
 </style>
+
+<script type="module">
+import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.0/+esm";
+window.BrowserMultiFormatReader = BrowserMultiFormatReader;
+window.zxingReady = true;
+</script>
+
 </head>
 <body>
 <header><h1>Ernährungs-Dashboard</h1></header>
@@ -257,11 +264,12 @@ Die Datei bleibt lokal auf deinem Gerät.
 <div class="detailsInner">
 
 <button class="primary" id="btnStartScanner" type="button">Kamera-Scan starten</button>
+<div class="smallNote">Hinweis: Der Kamera-Scanner lädt ZXing über CDN. Die manuelle Suche funktioniert weiterhin als Fallback.</div>
 <button class="secondary" id="btnStopScanner" type="button" style="display:none">Scan stoppen</button>
 <video id="scannerVideo" class="scannerVideo" playsinline muted></video>
 
 <div class="smallNote">
-Falls der Kamera-Scan auf deinem Gerät nicht unterstützt wird, kannst du den Barcode manuell eingeben.
+Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den Barcode manuell eingeben.
 </div>
 
 <label>Barcode manuell eingeben</label>
@@ -312,7 +320,7 @@ Falls der Kamera-Scan auf deinem Gerät nicht unterstützt wird, kannst du den B
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v19";
+var KEY="ernaehrungs_dashboard_app_v20";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -621,61 +629,77 @@ function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtei
 function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E("tplProtein").value="";E("tplFett").value="";E("tplKohlenhydrate").value=""}
 
 
-var scannerStream=null;
-var scannerTimer=null;
-var scannedRecently=false;
-var currentProduct=null;
 
-function scannerSupported(){
- return ("BarcodeDetector" in window);
-}
+var scannerControls=null;
+var scannerReader=null;
+var scannerActive=false;
+
 function stopScanner(){
  var video=E("scannerVideo");
- if(scannerTimer){clearInterval(scannerTimer);scannerTimer=null;}
- if(scannerStream){
-  var tracks=scannerStream.getTracks();
-  for(var i=0;i<tracks.length;i++){tracks[i].stop();}
-  scannerStream=null;
+
+ try{
+  if(scannerControls&&scannerControls.stop)scannerControls.stop();
+ }catch(e){}
+
+ scannerControls=null;
+ scannerReader=null;
+ scannerActive=false;
+
+ if(video&&video.srcObject){
+  try{
+   var tracks=video.srcObject.getTracks();
+   for(var i=0;i<tracks.length;i++){tracks[i].stop();}
+  }catch(e){}
+  video.srcObject=null;
  }
+
  video.style.display="none";
  E("btnStopScanner").style.display="none";
  E("btnStartScanner").style.display="block";
 }
+async function waitForZXing(){
+ var tries=0;
+ while(!window.BrowserMultiFormatReader&&tries<30){
+  await new Promise(function(resolve){setTimeout(resolve,100)});
+  tries++;
+ }
+ return !!window.BrowserMultiFormatReader;
+}
 async function startScanner(){
- if(!scannerSupported()){
-  alert("Der native Barcode-Scanner wird von diesem Browser nicht unterstützt. Bitte Barcode manuell eingeben.");
+ var ok=await waitForZXing();
+ if(!ok){
+  alert("ZXing konnte nicht geladen werden. Bitte Internetverbindung prüfen oder Barcode manuell eingeben.");
   return;
  }
+
  try{
   var video=E("scannerVideo");
-  scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-  video.srcObject=scannerStream;
   video.style.display="block";
   E("btnStopScanner").style.display="block";
   E("btnStartScanner").style.display="none";
-  await video.play();
 
-  var detector=new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]});
-  scannedRecently=false;
+  scannerReader=new window.BrowserMultiFormatReader();
+  scannerActive=true;
 
-  scannerTimer=setInterval(async function(){
-   if(scannedRecently)return;
-   try{
-    var codes=await detector.detect(video);
-    if(codes&&codes.length){
-     scannedRecently=true;
-     var code=codes[0].rawValue;
+  scannerControls=await scannerReader.decodeFromVideoDevice(
+   undefined,
+   video,
+   function(result, error, controls){
+    if(result&&scannerActive){
+     scannerActive=false;
+     var code=result.getText ? result.getText() : String(result.text||"");
      E("barcodeInput").value=code;
      stopScanner();
      lookupBarcode(code);
     }
-   }catch(e){}
-  },700);
+   }
+  );
  }catch(e){
-  alert("Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen oder Barcode manuell eingeben.");
+  alert("Kamera-Scan konnte nicht gestartet werden. Bitte Kamera-Berechtigung prüfen oder Barcode manuell eingeben.");
   stopScanner();
  }
 }
+
 async function lookupBarcode(code){
  code=String(code||"").trim();
  if(!code){
