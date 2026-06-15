@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v16</title>
+<title>Ernährungs-Dashboard v17</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -106,6 +106,22 @@ details.box:not([open]) summary::after{content:"▶"}
 .backupNote{font-size:13px;color:#6b7280;line-height:1.45;margin-top:10px}
 .fileInput{background:#f9fafb;border:1px dashed #9ca3af}
 
+
+.trendSvg{width:100%;height:170px;display:block;margin-top:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px}
+.trendLine{fill:none;stroke:#111827;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.trendPoint{fill:#22c55e;stroke:#111827;stroke-width:2}
+.trendAxis{stroke:#d1d5db;stroke-width:1}
+.trendLabel{font-size:11px;fill:#6b7280;font-weight:700}
+.calorieTrendItem{margin-top:10px}
+.calorieTrendTop{display:flex;justify-content:space-between;font-size:14px;font-weight:800;margin-bottom:5px}
+.calorieTrendBar{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+.calorieTrendFill{height:100%;background:#111827;border-radius:999px}
+.quickStats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.quickStat{background:white;border-radius:16px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.08);text-align:center}
+.quickStatLabel{font-size:12px;color:#6b7280;font-weight:900;text-transform:uppercase;letter-spacing:.03em}
+.quickStatValue{font-size:22px;font-weight:900;margin-top:4px}
+@media(max-width:380px){.quickStats{grid-template-columns:1fr}}
+
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
 </style>
 </head>
@@ -113,6 +129,18 @@ details.box:not([open]) summary::after{content:"▶"}
 <header><h1>Ernährungs-Dashboard</h1></header>
 <main>
 <div class="note" id="datum">Lädt...</div>
+
+
+<section class="quickStats" id="quickStats">
+<div class="quickStat">
+<div class="quickStatLabel">Ø Kalorien</div>
+<div class="quickStatValue" id="quickAvgCalories">–</div>
+</div>
+<div class="quickStat">
+<div class="quickStatLabel">Ø Gewicht</div>
+<div class="quickStatValue" id="quickAvgWeight">–</div>
+</div>
+</section>
 
 <section class="card ringCard">
 <div class="title">🔥 Kalorien heute</div>
@@ -183,6 +211,8 @@ details.box:not([open]) summary::after{content:"▶"}
 <div class="detailsInner">
 <div id="weekSummary"></div>
 <div id="weekHistory"></div>
+<h3>Kalorientrend</h3>
+<div id="calorieTrend"></div>
 
 </div>
 </details>
@@ -227,6 +257,7 @@ Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier d
 <input id="weightInput" type="number" inputmode="decimal" placeholder="z. B. 84,2">
 <button class="primary" id="btnSaveWeight" type="button">Gewicht speichern</button>
 <div id="weightStats" style="margin-top:12px"></div>
+<div id="weightChart"></div>
 <div id="weightHistory"></div>
 </div>
 </details>
@@ -248,7 +279,7 @@ Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier d
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v16";
+var KEY="ernaehrungs_dashboard_app_v17";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -547,7 +578,7 @@ function render(){
  renderCalorieRing();
  metric("protein","g");metric("fett","g");metric("kohlenhydrate","g");
  E("zielKalorien").value=data.goals.kalorien;E("zielProtein").value=data.goals.protein;E("zielFett").value=data.goals.fett;E("zielKohlenhydrate").value=data.goals.kohlenhydrate;
- renderHeaderWeight();renderMacroAmpel();renderTemplates();renderHistory();renderWeek();renderWeight();save();
+ renderQuickStats();renderHeaderWeight();renderMacroAmpel();renderTemplates();renderHistory();renderWeek();renderCalorieTrend();renderWeight();renderWeightChart();save();
 }
 function show(t){E("meldung").textContent=t;E("meldung").style.display="block";setTimeout(function(){E("meldung").style.display="none"},1300)}
 function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtein").value="";E("inFett").value="";E("inKohlenhydrate").value=""}
@@ -588,6 +619,83 @@ function archiveToday(){
  save();
  render();
  show("Heute gesichert");
+}
+
+
+function renderQuickStats(){
+ var week=getWeekWithToday();
+ var kcal="–";
+ if(week.length){
+  var sumK=0;
+  for(var i=0;i<week.length;i++){sumK+=Number(week[i].kalorien)||0}
+  kcal=nice(sumK/week.length)+" kcal";
+ }
+ E("quickAvgCalories").textContent=kcal;
+
+ var weight="–";
+ if(data.weights&&data.weights.length){
+  var arr=data.weights.slice().sort(function(a,b){return a.date>b.date?1:-1});
+  while(arr.length>7)arr.shift();
+  var sumW=0;
+  for(var j=0;j<arr.length;j++){sumW+=Number(arr[j].weight)||0}
+  weight=nice(sumW/arr.length)+" kg";
+ }
+ E("quickAvgWeight").textContent=weight;
+}
+function renderCalorieTrend(){
+ var box=E("calorieTrend");
+ if(!box)return;
+ var arr=getWeekWithToday();
+ if(!arr.length){box.innerHTML='<div class="empty">Noch keine Kaloriendaten vorhanden.</div>';return}
+ var max=1;
+ for(var i=0;i<arr.length;i++){if((Number(arr[i].kalorien)||0)>max)max=Number(arr[i].kalorien)||0}
+ box.innerHTML="";
+ for(var j=0;j<arr.length;j++){
+  var e=arr[j], w=Math.round(((Number(e.kalorien)||0)/max)*100);
+  var div=document.createElement("div");
+  div.className="calorieTrendItem";
+  div.innerHTML='<div class="calorieTrendTop"><span>'+displayDate(e.date)+(e.date===data.date?' · heute':'')+'</span><span>'+nice(e.kalorien)+' kcal</span></div>'+
+  '<div class="calorieTrendBar"><div class="calorieTrendFill" style="width:'+w+'%"></div></div>';
+  box.appendChild(div);
+ }
+}
+function renderWeightChart(){
+ var box=E("weightChart");
+ if(!box)return;
+ if(!data.weights||!data.weights.length){box.innerHTML="";return}
+ var arr=data.weights.slice().sort(function(a,b){return a.date>b.date?1:-1});
+ while(arr.length>7)arr.shift();
+ if(arr.length<2){box.innerHTML='<div class="empty">Für eine Grafik werden mindestens 2 Gewichtswerte benötigt.</div>';return}
+
+ var min=Number(arr[0].weight)||0,max=min;
+ for(var i=0;i<arr.length;i++){
+  var v=Number(arr[i].weight)||0;
+  if(v<min)min=v;
+  if(v>max)max=v;
+ }
+ if(max===min){max=min+1;min=min-1}
+
+ var width=360,height=170,pad=28;
+ var points=[];
+ for(var j=0;j<arr.length;j++){
+  var x=pad+(j*(width-2*pad)/(arr.length-1));
+  var y=height-pad-((Number(arr[j].weight)-min)/(max-min))*(height-2*pad);
+  points.push({x:x,y:y,v:Number(arr[j].weight)||0,date:arr[j].date});
+ }
+ var path="";
+ for(var k=0;k<points.length;k++){path+=(k===0?"M":" L")+points[k].x.toFixed(1)+" "+points[k].y.toFixed(1)}
+ var circles="";
+ var labels="";
+ for(var p=0;p<points.length;p++){
+  circles+='<circle class="trendPoint" cx="'+points[p].x.toFixed(1)+'" cy="'+points[p].y.toFixed(1)+'" r="4"></circle>';
+  labels+='<text class="trendLabel" x="'+points[p].x.toFixed(1)+'" y="'+(height-8)+'" text-anchor="middle">'+displayDate(points[p].date).slice(0,5)+'</text>';
+ }
+ box.innerHTML='<svg class="trendSvg" viewBox="0 0 '+width+' '+height+'" preserveAspectRatio="none">'+
+ '<line class="trendAxis" x1="'+pad+'" y1="'+(height-pad)+'" x2="'+(width-pad)+'" y2="'+(height-pad)+'"></line>'+
+ '<line class="trendAxis" x1="'+pad+'" y1="'+pad+'" x2="'+pad+'" y2="'+(height-pad)+'"></line>'+
+ '<text class="trendLabel" x="'+(pad+2)+'" y="'+(pad-8)+'">'+nice(max)+' kg</text>'+
+ '<text class="trendLabel" x="'+(pad+2)+'" y="'+(height-pad-6)+'">'+nice(min)+' kg</text>'+
+ '<path class="trendLine" d="'+path+'"></path>'+circles+labels+'</svg>';
 }
 
 function createBackup(){
