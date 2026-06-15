@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ernährung">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-startup-image" href="splash-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+
+
+
+
+<title>Ernährungs-Dashboard v14</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
+header{background:#111827;color:#fff;text-align:center;padding:calc(16px + env(safe-area-inset-top)) 18px 18px;position:sticky;top:0;z-index:10}
+header h1{margin:0;font-size:22px}
+main{max-width:520px;margin:0 auto;padding:14px}
+.card,.box{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.title{font-size:20px;font-weight:800;margin-bottom:8px}
+.row{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:16px}
+.rest{font-size:13px;color:#6b7280;margin-top:7px}
+.rest.over{color:#991b1b;font-weight:800}
+.bar{height:24px;background:#e5e7eb;border-radius:999px;overflow:hidden;position:relative}
+.fill{height:100%;width:0;background:#22c55e;border-radius:999px;transition:width .25s ease}
+.fill.warn{background:#f59e0b}.fill.danger{background:#ef4444}
+.barText{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#111827}
+h2{font-size:20px;margin:0 0 12px}
+h3{font-size:16px;margin:16px 0 8px}
+label{display:block;font-weight:700;margin-top:10px;margin-bottom:5px}
+input{width:100%;font-size:18px;padding:15px;border:1px solid #d1d5db;border-radius:13px;background:#fff}
+button{width:100%;font-size:17px;font-weight:800;padding:16px;margin-top:12px;border:0;border-radius:15px;cursor:pointer}
+.primary{background:#111827;color:white}.secondary{background:#e5e7eb;color:#111827}.dangerBtn{background:#fee2e2;color:#991b1b}
+.note{font-size:13px;color:#6b7280;text-align:center;margin-bottom:12px}.message{display:none;padding:10px;border-radius:10px;background:#dcfce7;color:#166534;text-align:center;font-weight:800;margin-top:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.historyItem,.templateItem,.weekItem{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-top:10px;background:#f9fafb}
+.historyTop,.templateTop,.weekTop{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}
+.historyTime,.templateName,.weekDate{font-weight:800}
+.historyValues,.templateValues,.weekValues{font-size:14px;color:#374151;line-height:1.5}
+.deleteSmall{width:auto;margin:0;padding:8px 11px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px}
+.addSmall{width:auto;margin:0;padding:8px 11px;border-radius:10px;background:#111827;color:#fff;font-size:13px}
+.empty{font-size:14px;color:#6b7280;text-align:center;padding:12px 0}
+.templateActions{display:flex;gap:8px}
+.summaryGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.summaryCard{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.summaryLabel{font-size:12px;color:#6b7280;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+.summaryValue{font-size:20px;font-weight:900;margin-top:4px}
+.weekBar{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:8px}
+.weekFill{height:100%;background:#111827;border-radius:999px}
+.goalLine{font-size:14px;color:#374151;line-height:1.7;margin-top:8px}
+details.box{padding:0;overflow:hidden}
+details.box summary{list-style:none;padding:16px;font-size:20px;font-weight:900;cursor:pointer}
+details.box summary::-webkit-details-marker{display:none}
+details.box summary::after{content:"▼";float:right;font-size:14px;margin-top:5px;color:#6b7280}
+details.box:not([open]) summary::after{content:"▶"}
+.detailsInner{padding:0 16px 16px}
+
+.ringCard{text-align:center}
+.ringWrap{width:230px;height:230px;margin:6px auto 10px;position:relative}
+.ringSvg{width:230px;height:230px;transform:rotate(-90deg)}
+.ringBg{fill:none;stroke:#e5e7eb;stroke-width:18}
+.ringProgress{fill:none;stroke:#22c55e;stroke-width:18;stroke-linecap:round;stroke-dasharray:503;stroke-dashoffset:503;transition:stroke-dashoffset .25s ease,stroke .25s ease}
+.ringProgress.warn{stroke:#f59e0b}
+.ringProgress.danger{stroke:#ef4444}
+.ringCenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ringPercent{font-size:46px;font-weight:900;line-height:1}
+.ringLabel{font-size:13px;color:#6b7280;margin-top:6px}
+.ringSub{font-size:15px;font-weight:800;margin-top:4px}
+.barcodeBox{background:#f9fafb;border:1px dashed #9ca3af;border-radius:14px;padding:14px;text-align:center;color:#374151}
+.barcodeIcon{font-size:30px;margin-bottom:6px}
+
+
+.mealName{display:block;font-size:16px;font-weight:900;color:#111827;margin-bottom:2px}
+.mealTime{font-size:12px;color:#6b7280;font-weight:700}
+.weightRow{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid #e5e7eb;border-radius:14px;background:#f9fafb;padding:10px 12px;margin-top:8px}
+.weightDate{font-weight:800}
+.weightValue{font-weight:900}
+
+
+.macroAmpel{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.ampelItem{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:10px;text-align:center}
+.ampelIcon{font-size:22px;display:block;margin-bottom:3px}
+.ampelLabel{font-size:12px;font-weight:800;color:#374151}
+.ampelValue{font-size:12px;color:#6b7280;margin-top:2px}
+.headerWeight{margin-top:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:10px;font-size:14px;color:#374151}
+.headerWeight b{color:#111827}
+
+@media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>Ernährungs-Dashboard</h1></header>
+<main>
+<div class="note" id="datum">Lädt...</div>
+
+<section class="card ringCard">
+<div class="title">🔥 Kalorien heute</div>
+<div class="ringWrap">
+<svg class="ringSvg" viewBox="0 0 190 190">
+<circle class="ringBg" cx="95" cy="95" r="80"></circle>
+<circle class="ringProgress" id="calorieRing" cx="95" cy="95" r="80"></circle>
+</svg>
+<div class="ringCenter">
+<div class="ringPercent" id="calorieRingPercent">0%</div>
+<div class="ringLabel">Kalorienziel</div>
+<div class="ringSub" id="calorieRingSub">0 / 2000 kcal</div>
+<div class="rest" id="calorieRingRest"></div>
+</div>
+</div>
+<div class="headerWeight" id="headerWeight">⚖️ Noch kein Gewicht gespeichert</div>
+<div class="macroAmpel" id="macroAmpel"></div>
+</section>
+
+
+<section id="dashboard">
+<div class="card"><div class="title">🥩 Protein</div><div class="row"><span id="proteinText"></span><span id="proteinProzent"></span></div><div class="bar"><div class="fill" id="proteinBar"></div><div class="barText" id="proteinBarText"></div></div><div class="rest" id="proteinRest"></div></div>
+<div class="card"><div class="title">🥑 Fett</div><div class="row"><span id="fettText"></span><span id="fettProzent"></span></div><div class="bar"><div class="fill" id="fettBar"></div><div class="barText" id="fettBarText"></div></div><div class="rest" id="fettRest"></div></div>
+<div class="card"><div class="title">🍞 Kohlenhydrate</div><div class="row"><span id="kohlenhydrateText"></span><span id="kohlenhydrateProzent"></span></div><div class="bar"><div class="fill" id="kohlenhydrateBar"></div><div class="barText" id="kohlenhydrateBarText"></div></div><div class="rest" id="kohlenhydrateRest"></div></div>
+</section>
+
+<details class="box" open>
+<summary>➕ Mahlzeit hinzufügen</summary>
+<div class="detailsInner">
+<label>Beschreibung</label><input id="inName" type="text" placeholder="z. B. Frühstück, Döner, Abendessen">
+<div class="grid">
+<div><label>Kalorien</label><input id="inKalorien" type="number" inputmode="decimal" placeholder="500"></div>
+<div><label>Protein</label><input id="inProtein" type="number" inputmode="decimal" placeholder="35"></div>
+<div><label>Fett</label><input id="inFett" type="number" inputmode="decimal" placeholder="20"></div>
+<div><label>Kohlenhydrate</label><input id="inKohlenhydrate" type="number" inputmode="decimal" placeholder="60"></div>
+</div>
+<button class="primary" id="btnAdd" type="button">Mahlzeit hinzufügen</button>
+<button class="secondary" id="btnUndo" type="button">↩ Letzte Mahlzeit rückgängig</button>
+<div class="message" id="meldung"></div>
+</div>
+</details>
+
+<details class="box" open>
+<summary>⚡ Schnelleingaben</summary>
+<div class="detailsInner">
+<div id="templates"></div>
+<h3>Neue Vorlage anlegen</h3>
+<label>Name</label><input id="tplName" type="text" placeholder="z. B. Proteinshake">
+<div class="grid">
+<div><label>Kalorien</label><input id="tplKalorien" type="number" inputmode="decimal" placeholder="150"></div>
+<div><label>Protein</label><input id="tplProtein" type="number" inputmode="decimal" placeholder="30"></div>
+<div><label>Fett</label><input id="tplFett" type="number" inputmode="decimal" placeholder="2"></div>
+<div><label>Kohlenhydrate</label><input id="tplKohlenhydrate" type="number" inputmode="decimal" placeholder="5"></div>
+</div>
+<button class="primary" id="btnSaveTemplate" type="button">Vorlage speichern</button>
+</div>
+</details>
+
+<details class="box" open>
+<summary>📋 Heutige Mahlzeiten</summary>
+<div class="detailsInner">
+<div id="history"></div>
+</div>
+</details>
+
+<details class="box" open>
+<summary>📊 Wochenstatistik</summary>
+<div class="detailsInner">
+<div id="weekSummary"></div>
+<div id="weekHistory"></div>
+
+</div>
+</details>
+
+
+
+<details class="box">
+<summary>📱 PWA-Status</summary>
+<div class="detailsInner">
+<div class="barcodeBox">
+<b>Icon/Splash-Hinweis</b><br>
+iOS übernimmt App-Icon und Splashscreen nur beim Hinzufügen zum Home-Bildschirm. Bereits installierte Homescreen-Apps behalten häufig das alte Icon. Bitte alte App löschen, Safari komplett schließen, diese neue Seite öffnen und erneut „Zum Home-Bildschirm“ wählen.
+<br><br>
+Direkte Testdateien:<br>
+<a href="apple-touch-icon.png" target="_blank">apple-touch-icon.png</a><br>
+<a href="manifest.json" target="_blank">manifest.json</a>
+</div>
+</div>
+</details>
+
+<details class="box">
+<summary>📷 Barcode-Scanner</summary>
+<div class="detailsInner">
+<div class="barcodeBox">
+<div class="barcodeIcon">📷</div>
+<b>Vorbereitet für Barcode-Scan</b><br>
+Aktuell noch ohne echte Scanner-Funktion. In einer späteren Version kann hier die Kamera geöffnet und z. B. mit Open Food Facts nach Nährwerten gesucht werden.
+</div>
+<button class="secondary" type="button" onclick="alert('Barcode-Scanner kommt in einer späteren Version. Dafür brauchen wir Kamera-Zugriff und eine Produktdatenbank.')">Barcode scannen</button>
+</div>
+</details>
+
+
+<details class="box">
+<summary>⚖️ Gewicht</summary>
+<div class="detailsInner">
+<label>Gewicht heute</label>
+<input id="weightInput" type="number" inputmode="decimal" placeholder="z. B. 84,2">
+<button class="primary" id="btnSaveWeight" type="button">Gewicht speichern</button>
+<div id="weightStats" style="margin-top:12px"></div>
+<div id="weightHistory"></div>
+</div>
+</details>
+
+<details class="box">
+<summary>🎯 Ziele</summary>
+<div class="detailsInner">
+<div class="grid">
+<div><label>Kalorien-Ziel</label><input id="zielKalorien" type="number" inputmode="decimal"></div>
+<div><label>Protein-Ziel</label><input id="zielProtein" type="number" inputmode="decimal"></div>
+<div><label>Fett-Ziel</label><input id="zielFett" type="number" inputmode="decimal"></div>
+<div><label>Kohlenhydrate-Ziel</label><input id="zielKohlenhydrate" type="number" inputmode="decimal"></div>
+</div>
+<button class="primary" id="btnSaveGoals" type="button">Ziele speichern</button>
+<button class="dangerBtn" id="btnReset" type="button">Tageswerte zurücksetzen</button>
+</div>
+</details>
+</main>
+
+<script>
+(function(){
+var KEY="ernaehrungs_dashboard_app_v14";
+function E(id){return document.getElementById(id)}
+function two(n){return n<10?"0"+n:""+n}
+function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
+function dateKey(d){return d.getFullYear()+"-"+two(d.getMonth()+1)+"-"+two(d.getDate())}
+function today(){return dateKey(new Date())}
+function todayDE(){var d=new Date();return two(d.getDate())+"."+two(d.getMonth()+1)+"."+d.getFullYear()}
+function displayDate(k){var p=String(k).split("-"); if(p.length!==3)return k; return p[2]+"."+p[1]+"."+p[0]}
+function val(id){var v=String(E(id).value||"").replace(",",".");v=parseFloat(v);return isNaN(v)?0:v}
+function nice(n){n=Number(n)||0;return Math.round(n)===n?String(n):String(Math.round(n*10)/10)}
+function uid(){return String(Date.now())+String(Math.floor(Math.random()*10000))}
+function emptyValues(){return{kalorien:0,protein:0,fett:0,kohlenhydrate:0}}
+function defaults(){return{date:today(),goals:{kalorien:2000,protein:150,fett:70,kohlenhydrate:250},values:emptyValues(),meals:[],templates:[
+{name:"Proteinshake",kalorien:150,protein:30,fett:2,kohlenhydrate:5},
+{name:"Skyr",kalorien:200,protein:35,fett:1,kohlenhydrate:12},
+{name:"Hähnchen + Reis",kalorien:600,protein:50,fett:10,kohlenhydrate:75}
+],week:[],weights:[]}}
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function migrateOld(){
+ var oldKeys=["ernaehrungs_dashboard_app_v3","ernaehrungs_dashboard_app_v2","ernaehrungs_dashboard_app_v1"];
+ for(var i=0;i<oldKeys.length;i++){
+  try{
+   var o=JSON.parse(localStorage.getItem(oldKeys[i]));
+   if(o&&o.goals){
+    var d=defaults();
+    d.goals=o.goals||d.goals;
+    d.meals=o.meals||[];
+    d.templates=o.templates||d.templates;
+    d.values=o.values||emptyValues();
+    d.date=o.date||today();
+    return d;
+   }
+  }catch(e){}
+ }
+ return null;
+}
+function load(){
+ var d=null;
+ try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+ if(!d)d=migrateOld();
+ if(!d||!d.goals||!d.values)d=defaults();
+ if(!d.meals)d.meals=[];
+ if(!d.templates)d.templates=defaults().templates;
+ if(!d.week)d.week=[];
+ if(!d.weights)d.weights=[];
+ if(d.date!==today()){
+   archiveDay(d, false);
+   d.date=today();
+   d.values=emptyValues();
+   d.meals=[];
+ }
+ trimWeek(d);
+ return d;
+}
+var data=load();save();
+
+function recalc(){
+ data.values=emptyValues();
+ for(var i=0;i<data.meals.length;i++){
+  data.values.kalorien+=Number(data.meals[i].kalorien)||0;
+  data.values.protein+=Number(data.meals[i].protein)||0;
+  data.values.fett+=Number(data.meals[i].fett)||0;
+  data.values.kohlenhydrate+=Number(data.meals[i].kohlenhydrate)||0;
+ }
+}
+function dayHasValues(values){
+ return (Number(values.kalorien)||0)>0 || (Number(values.protein)||0)>0 || (Number(values.fett)||0)>0 || (Number(values.kohlenhydrate)||0)>0;
+}
+function archiveDay(d, force){
+ if(!d.week)d.week=[];
+ if(!d.weights)d.weights=[];
+ var entry={
+  date:d.date,
+  kalorien:Number(d.values.kalorien)||0,
+  protein:Number(d.values.protein)||0,
+  fett:Number(d.values.fett)||0,
+  kohlenhydrate:Number(d.values.kohlenhydrate)||0,
+  goals:{kalorien:Number(d.goals.kalorien)||0,protein:Number(d.goals.protein)||0,fett:Number(d.goals.fett)||0,kohlenhydrate:Number(d.goals.kohlenhydrate)||0}
+ };
+ if(!force && !dayHasValues(entry))return;
+ var found=false;
+ for(var i=0;i<d.week.length;i++){
+  if(d.week[i].date===entry.date){d.week[i]=entry;found=true;break;}
+ }
+ if(!found)d.week.push(entry);
+ trimWeek(d);
+}
+function trimWeek(d){
+ d.week.sort(function(a,b){return a.date>b.date?1:-1});
+ while(d.week.length>7)d.week.shift();
+}
+
+function renderCalorieRing(){
+ var ist=Number(data.values.kalorien)||0;
+ var soll=Number(data.goals.kalorien)||0;
+ var p=soll>0?Math.round(ist/soll*100):0;
+ var shown=Math.min(p,100);
+ var circumference=503;
+ var offset=circumference-(circumference*shown/100);
+ var ring=E("calorieRing");
+ ring.style.strokeDashoffset=offset;
+ ring.className="ringProgress"+(p>100?" danger":p>=80?" warn":"");
+ E("calorieRingPercent").textContent=p+"%";
+ E("calorieRingSub").textContent=nice(ist)+" / "+nice(soll)+" kcal";
+ var rest=soll-ist;
+ E("calorieRingRest").className=rest<0?"rest over":"rest";
+ E("calorieRingRest").textContent=rest<0?nice(Math.abs(rest))+" kcal über Ziel":"Noch "+nice(rest)+" kcal übrig";
+}
+
+function metric(k,unit){
+ var ist=Number(data.values[k])||0,soll=Number(data.goals[k])||0,p=soll>0?Math.round(ist/soll*100):0,w=Math.min(p,100),b=E(k+"Bar"),rest=soll-ist;
+ E(k+"Text").textContent=nice(ist)+" / "+nice(soll)+" "+unit;
+ E(k+"Prozent").textContent=p+"%";
+ E(k+"BarText").textContent=p+"%";
+ b.style.width=w+"%"; b.className="fill"+(p>=100?" danger":p>=90?" warn":"");
+ E(k+"Rest").className=rest<0?"rest over":"rest";
+ E(k+"Rest").textContent=rest<0?nice(Math.abs(rest))+" "+unit+" über Ziel": "Noch "+nice(rest)+" "+unit+" übrig";
+}
+function renderTemplates(){
+ var t=E("templates"); t.innerHTML="";
+ if(!data.templates.length){t.innerHTML='<div class="empty">Noch keine Vorlagen gespeichert.</div>';return}
+ for(var i=0;i<data.templates.length;i++){
+  var m=data.templates[i], item=document.createElement("div");
+  item.className="templateItem";
+  item.innerHTML='<div class="templateTop"><span class="templateName">'+escapeHtml(m.name)+'</span><div class="templateActions"><button class="addSmall" type="button" data-add="'+i+'">+</button><button class="deleteSmall" type="button" data-del-template="'+i+'">Löschen</button></div></div>'+
+  '<div class="templateValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
+  t.appendChild(item);
+ }
+ var addButtons=t.querySelectorAll("button[data-add]");
+ for(var a=0;a<addButtons.length;a++){addButtons[a].onclick=function(){addTemplateMeal(parseInt(this.getAttribute("data-add"),10))}}
+ var delButtons=t.querySelectorAll("button[data-del-template]");
+ for(var d=0;d<delButtons.length;d++){delButtons[d].onclick=function(){deleteTemplate(parseInt(this.getAttribute("data-del-template"),10))}}
+}
+function renderHistory(){
+ var h=E("history"); h.innerHTML="";
+ if(!data.meals.length){h.innerHTML='<div class="empty">Noch keine Mahlzeit eingetragen.</div>';return}
+ for(var i=data.meals.length-1;i>=0;i--){
+  var m=data.meals[i], name=m.name?escapeHtml(m.name):"Mahlzeit", item=document.createElement("div");
+  item.className="historyItem";
+  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+'</span></span><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div>'+
+  '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
+  h.appendChild(item);
+ }
+ var buttons=h.querySelectorAll("button[data-index]");
+ for(var j=0;j<buttons.length;j++){buttons[j].onclick=function(){deleteMeal(parseInt(this.getAttribute("data-index"),10))}}
+}
+function getWeekWithToday(){
+ var arr=data.week.slice();
+ var todayEntry={date:data.date,kalorien:data.values.kalorien,protein:data.values.protein,fett:data.values.fett,kohlenhydrate:data.values.kohlenhydrate,goals:data.goals};
+ var found=false;
+ for(var i=0;i<arr.length;i++){if(arr[i].date===data.date){arr[i]=todayEntry;found=true;break;}}
+ if(!found && dayHasValues(todayEntry))arr.push(todayEntry);
+ arr.sort(function(a,b){return a.date>b.date?1:-1});
+ while(arr.length>7)arr.shift();
+ return arr;
+}
+function renderWeek(){
+ var arr=getWeekWithToday(), s=E("weekSummary"), h=E("weekHistory");
+ if(!arr.length){
+  s.innerHTML='<div class="empty">Noch keine Wochenwerte vorhanden.</div>';
+  h.innerHTML='';
+  return;
+ }
+ var sums=emptyValues(), hitK=0,hitP=0,hitF=0,hitC=0;
+ for(var i=0;i<arr.length;i++){
+  sums.kalorien+=Number(arr[i].kalorien)||0;
+  sums.protein+=Number(arr[i].protein)||0;
+  sums.fett+=Number(arr[i].fett)||0;
+  sums.kohlenhydrate+=Number(arr[i].kohlenhydrate)||0;
+  var g=arr[i].goals||data.goals;
+  if((Number(arr[i].kalorien)||0)<= (Number(g.kalorien)||0) && (Number(arr[i].kalorien)||0)>0)hitK++;
+  if((Number(arr[i].protein)||0)>= (Number(g.protein)||0) && (Number(arr[i].protein)||0)>0)hitP++;
+  if((Number(arr[i].fett)||0)<= (Number(g.fett)||0) && (Number(arr[i].fett)||0)>0)hitF++;
+  if((Number(arr[i].kohlenhydrate)||0)<= (Number(g.kohlenhydrate)||0) && (Number(arr[i].kohlenhydrate)||0)>0)hitC++;
+ }
+ var n=arr.length;
+ s.innerHTML='<div class="summaryGrid">'+
+ '<div class="summaryCard"><div class="summaryLabel">Ø Kalorien</div><div class="summaryValue">'+nice(sums.kalorien/n)+'</div></div>'+
+ '<div class="summaryCard"><div class="summaryLabel">Ø Protein</div><div class="summaryValue">'+nice(sums.protein/n)+' g</div></div>'+
+ '<div class="summaryCard"><div class="summaryLabel">Ø Fett</div><div class="summaryValue">'+nice(sums.fett/n)+' g</div></div>'+
+ '<div class="summaryCard"><div class="summaryLabel">Ø KH</div><div class="summaryValue">'+nice(sums.kohlenhydrate/n)+' g</div></div>'+
+ '</div><div class="goalLine">Kalorien im Ziel: <b>'+hitK+' von '+n+' Tagen</b><br>Protein-Ziel erreicht: <b>'+hitP+' von '+n+' Tagen</b><br>Fett im Ziel: <b>'+hitF+' von '+n+' Tagen</b><br>KH im Ziel: <b>'+hitC+' von '+n+' Tagen</b></div>';
+ var maxK=1;
+ for(var m=0;m<arr.length;m++){if((Number(arr[m].kalorien)||0)>maxK)maxK=Number(arr[m].kalorien)||0}
+ h.innerHTML="";
+ for(var j=arr.length-1;j>=0;j--){
+  var e=arr[j], width=Math.round(((Number(e.kalorien)||0)/maxK)*100), item=document.createElement("div");
+  item.className="weekItem";
+  item.innerHTML='<div class="weekTop"><span class="weekDate">'+displayDate(e.date)+(e.date===data.date?' · heute':'')+'</span><span>'+nice(e.kalorien)+' kcal</span></div>'+
+  '<div class="weekValues">🥩 '+nice(e.protein)+' g Protein &nbsp; | &nbsp; 🥑 '+nice(e.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(e.kohlenhydrate)+' g KH</div>'+
+  '<div class="weekBar"><div class="weekFill" style="width:'+width+'%"></div></div>';
+  h.appendChild(item);
+ }
+}
+
+function renderWeight(){
+ var stats=E("weightStats"), hist=E("weightHistory");
+ if(!data.weights)data.weights=[];
+ var todayWeight=null;
+ for(var i=0;i<data.weights.length;i++){if(data.weights[i].date===data.date)todayWeight=data.weights[i].weight}
+ if(todayWeight!==null)E("weightInput").value=todayWeight;
+ if(!data.weights.length){
+  stats.innerHTML='<div class="empty">Noch kein Gewicht gespeichert.</div>';
+  hist.innerHTML='';
+  return;
+ }
+ var arr=data.weights.slice().sort(function(a,b){return a.date>b.date?1:-1});
+ while(arr.length>7)arr.shift();
+ var sum=0;
+ for(var j=0;j<arr.length;j++){sum+=Number(arr[j].weight)||0}
+ var avg=sum/arr.length;
+ var diff=arr.length>=2?(Number(arr[arr.length-1].weight)-Number(arr[0].weight)):0;
+ stats.innerHTML='<div class="summaryGrid">'+
+ '<div class="summaryCard"><div class="summaryLabel">Ø 7 Tage</div><div class="summaryValue">'+nice(avg)+' kg</div></div>'+
+ '<div class="summaryCard"><div class="summaryLabel">Veränderung</div><div class="summaryValue">'+(diff>0?"+":"")+nice(diff)+' kg</div></div>'+
+ '</div>';
+ hist.innerHTML='';
+ for(var k=arr.length-1;k>=0;k--){
+  var row=document.createElement("div");
+  row.className="weightRow";
+  row.innerHTML='<span class="weightDate">'+displayDate(arr[k].date)+(arr[k].date===data.date?' · heute':'')+'</span><span class="weightValue">'+nice(arr[k].weight)+' kg</span>';
+  hist.appendChild(row);
+ }
+}
+function saveWeight(){
+ var w=val("weightInput");
+ if(!w){alert("Bitte ein Gewicht eingeben.");return}
+ if(!data.weights)data.weights=[];
+ var found=false;
+ for(var i=0;i<data.weights.length;i++){
+  if(data.weights[i].date===data.date){data.weights[i].weight=w;found=true;break}
+ }
+ if(!found)data.weights.push({date:data.date,weight:w});
+ data.weights.sort(function(a,b){return a.date>b.date?1:-1});
+ while(data.weights.length>30)data.weights.shift();
+ render();
+ show("Gewicht gespeichert");
+}
+
+
+function latestWeight(){
+ if(!data.weights||!data.weights.length)return null;
+ var arr=data.weights.slice().sort(function(a,b){return a.date>b.date?1:-1});
+ return arr[arr.length-1];
+}
+function avgRecentWeight(){
+ if(!data.weights||!data.weights.length)return null;
+ var arr=data.weights.slice().sort(function(a,b){return a.date>b.date?1:-1});
+ while(arr.length>7)arr.shift();
+ var sum=0;
+ for(var i=0;i<arr.length;i++){sum+=Number(arr[i].weight)||0}
+ return sum/arr.length;
+}
+function renderHeaderWeight(){
+ var box=E("headerWeight");
+ if(!box)return;
+ var latest=latestWeight();
+ if(!latest){box.innerHTML="⚖️ Noch kein Gewicht gespeichert";return}
+ var avg=avgRecentWeight();
+ box.innerHTML="⚖️ <b>"+nice(latest.weight)+" kg</b> &nbsp; · &nbsp; Ø 7 Tage: <b>"+nice(avg)+" kg</b>";
+}
+
+
+function macroStatus(key){
+ var ist=Number(data.values[key])||0;
+ var soll=Number(data.goals[key])||0;
+ var p=soll>0?Math.round(ist/soll*100):0;
+ var symbol="🟢";
+ var status="im Zielbereich";
+
+ // Einheitliche Zielbereichs-Logik für alle Makros:
+ // <90% rot, 90-99% orange, 100-110% grün, 111-120% orange, >120% rot.
+ if(p<90){symbol="🔴";status="deutlich zu wenig";}
+ else if(p<100){symbol="🟠";status="fast erreicht";}
+ else if(p<=110){symbol="🟢";status="im Zielbereich";}
+ else if(p<=120){symbol="🟠";status="leicht drüber";}
+ else {symbol="🔴";status="deutlich drüber";}
+
+ return {symbol:symbol,percent:p,status:status};
+}
+
+function renderMacroAmpel(){
+ var box=E("macroAmpel");
+ if(!box)return;
+ var protein=macroStatus("protein");
+ var fett=macroStatus("fett");
+ var kh=macroStatus("kohlenhydrate");
+ box.innerHTML=
+ '<div class="ampelItem"><span class="ampelIcon">'+protein.symbol+'</span><div class="ampelLabel">🥩 Protein</div><div class="ampelValue">'+protein.percent+'% · '+protein.status+'</div></div>'+
+ '<div class="ampelItem"><span class="ampelIcon">'+fett.symbol+'</span><div class="ampelLabel">🥑 Fett</div><div class="ampelValue">'+fett.percent+'% · '+fett.status+'</div></div>'+
+ '<div class="ampelItem"><span class="ampelIcon">'+kh.symbol+'</span><div class="ampelLabel">🍞 KH</div><div class="ampelValue">'+kh.percent+'% · '+kh.status+'</div></div>';
+}
+
+function render(){
+ recalc();
+ E("datum").textContent="Heute: "+todayDE();
+ renderCalorieRing();
+ metric("protein","g");metric("fett","g");metric("kohlenhydrate","g");
+ E("zielKalorien").value=data.goals.kalorien;E("zielProtein").value=data.goals.protein;E("zielFett").value=data.goals.fett;E("zielKohlenhydrate").value=data.goals.kohlenhydrate;
+ renderHeaderWeight();renderMacroAmpel();renderTemplates();renderHistory();renderWeek();renderWeight();save();
+}
+function show(t){E("meldung").textContent=t;E("meldung").style.display="block";setTimeout(function(){E("meldung").style.display="none"},1300)}
+function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtein").value="";E("inFett").value="";E("inKohlenhydrate").value=""}
+function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E("tplProtein").value="";E("tplFett").value="";E("tplKohlenhydrate").value=""}
+function add(){
+ var m={id:uid(),time:nowTime(),name:String(E("inName").value||"").trim(),kalorien:val("inKalorien"),protein:val("inProtein"),fett:val("inFett"),kohlenhydrate:val("inKohlenhydrate")};
+ data.meals.push(m);clearInputs();render();show("Mahlzeit hinzugefügt");
+}
+function addTemplateMeal(index){
+ var t=data.templates[index]; if(!t)return;
+ data.meals.push({id:uid(),time:nowTime(),name:t.name,kalorien:Number(t.kalorien)||0,protein:Number(t.protein)||0,fett:Number(t.fett)||0,kohlenhydrate:Number(t.kohlenhydrate)||0});
+ render();show("Vorlage hinzugefügt");
+}
+function saveTemplate(){
+ var name=String(E("tplName").value||"").trim();
+ if(!name){alert("Bitte einen Namen für die Vorlage eingeben.");return}
+ data.templates.push({name:name,kalorien:val("tplKalorien"),protein:val("tplProtein"),fett:val("tplFett"),kohlenhydrate:val("tplKohlenhydrate")});
+ clearTemplateInputs();render();show("Vorlage gespeichert");
+}
+function deleteTemplate(index){
+ if(index<0||index>=data.templates.length)return;
+ if(!confirm("Vorlage wirklich löschen?"))return;
+ data.templates.splice(index,1);render();show("Vorlage gelöscht");
+}
+function undo(){
+ if(!data.meals.length){alert("Es gibt keine Mahlzeit zum Rückgängig machen.");return}
+ data.meals.pop();render();show("Letzte Mahlzeit gelöscht");
+}
+function deleteMeal(index){
+ if(index<0||index>=data.meals.length)return;
+ data.meals.splice(index,1);render();show("Mahlzeit gelöscht");
+}
+function goals(){data.goals.kalorien=val("zielKalorien");data.goals.protein=val("zielProtein");data.goals.fett=val("zielFett");data.goals.kohlenhydrate=val("zielKohlenhydrate");render();show("Ziele gespeichert")}
+function reset(){if(!confirm("Tageswerte und heutige Mahlzeiten wirklich zurücksetzen?"))return;data.date=today();data.values=emptyValues();data.meals=[];render();show("Tageswerte zurückgesetzt")}
+function archiveToday(){
+ recalc();
+ archiveDay(data,true);
+ save();
+ render();
+ show("Heute gesichert");
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[c]})}
+E("btnAdd").addEventListener("click",add);
+E("btnUndo").addEventListener("click",undo);
+E("btnSaveGoals").addEventListener("click",goals);
+E("btnReset").addEventListener("click",reset);
+E("btnSaveTemplate").addEventListener("click",saveTemplate);
+E("btnSaveWeight").addEventListener("click",saveWeight);
+render();
+})();
+</script>
+</body>
+</html>
