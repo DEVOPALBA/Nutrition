@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v24</title>
+<title>Ernährungs-Dashboard v25</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -147,7 +147,17 @@ details.box:not([open]) summary::after{content:"▶"}
 .draftTotal{margin-top:12px;padding:12px;border-radius:14px;background:#ecfdf5;color:#065f46;font-weight:900;line-height:1.55}
 .starSmall{width:auto;margin:0;padding:8px 11px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:13px}
 
-@media(max-width:380px){.grid,.summaryGrid,.macroAmpel{grid-template-columns:1fr}}
+
+.mealDetails{margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px}
+.mealPart{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:9px 10px;margin-top:8px}
+.mealPartName{font-weight:900}
+.mealPartValues{font-size:13px;color:#374151;line-height:1.45;margin-top:3px}
+.saveDialogBackdrop{display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:10000;align-items:center;justify-content:center;padding:18px}
+.saveDialog{background:#fff;border-radius:18px;padding:16px;width:100%;max-width:420px;box-shadow:0 8px 28px rgba(0,0,0,.25)}
+.choiceGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.choiceBtn{background:#e5e7eb;color:#111827;margin:0;padding:12px;border-radius:12px;font-size:15px}
+
+@media(max-width:380px){.grid,.summaryGrid,.macroAmpel,.choiceGrid{grid-template-columns:1fr}}
 </style>
 
 <script type="module">
@@ -203,8 +213,6 @@ window.zxingReady = true;
 <details class="box" id="sectionDraft" open>
 <summary>🍽 Aktuelle Mahlzeit</summary>
 <div class="detailsInner">
-<label>Name der Mahlzeit</label>
-<input id="draftName" type="text" placeholder="z. B. Frühstück, Mittagessen, Abendessen">
 <div id="draftItems"></div>
 <div id="draftTotal" class="draftTotal">Noch keine Bestandteile hinzugefügt.</div>
 <button class="primary" id="btnSaveDraftMeal" type="button">Mahlzeit speichern</button>
@@ -347,6 +355,24 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 </details>
 </main>
 
+<div class="saveDialogBackdrop" id="saveMealDialog">
+<div class="saveDialog">
+<h2>Mahlzeit speichern</h2>
+<div class="smallNote">Wähle einen Namen oder gib einen eigenen ein.</div>
+<div class="choiceGrid">
+<button class="choiceBtn" type="button" data-meal-name="Frühstück">Frühstück</button>
+<button class="choiceBtn" type="button" data-meal-name="Mittagessen">Mittagessen</button>
+<button class="choiceBtn" type="button" data-meal-name="Abendessen">Abendessen</button>
+<button class="choiceBtn" type="button" data-meal-name="Snack">Snack</button>
+</div>
+<label>Eigener Name</label>
+<input id="customMealName" type="text" placeholder="z. B. Post-Workout">
+<button class="primary" id="btnConfirmSaveMeal" type="button">Speichern</button>
+<button class="secondary" id="btnCancelSaveMeal" type="button">Abbrechen</button>
+</div>
+</div>
+
+
 <div class="fabMenu" id="fabMenu">
 <button class="fabItem" id="fabScan" type="button">📷 Scanner starten</button>
 <button class="fabItem" id="fabMeal" type="button">🍽️ Mahlzeit</button>
@@ -358,7 +384,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v24";
+var KEY="ernaehrungs_dashboard_app_v25";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -499,9 +525,21 @@ function renderHistory(){
  if(!data.meals.length){h.innerHTML='<div class="empty">Noch keine Mahlzeit eingetragen.</div>';return}
  for(var i=data.meals.length-1;i>=0;i--){
   var m=data.meals[i], name=m.name?escapeHtml(m.name):"Mahlzeit", item=document.createElement("div");
+  var parts=(m.items&&m.items.length)?(" · "+m.items.length+" Bestandteile"):"";
+  var itemsHtml="";
+  if(m.items&&m.items.length){
+   itemsHtml='<div class="mealDetails">';
+   for(var mi=0;mi<m.items.length;mi++){
+    var it=m.items[mi];
+    itemsHtml+='<div class="mealPart"><div class="mealPartName">'+escapeHtml(it.name||"Bestandteil")+'</div><div class="mealPartValues">🔥 '+nice(it.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(it.protein)+' g Protein<br>🥑 '+nice(it.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(it.kohlenhydrate)+' g Kohlenhydrate</div></div>';
+   }
+   itemsHtml+='</div>';
+  }
   item.className="historyItem";
-  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+'</span></span><div class="historyActions"><button class="starSmall" type="button" data-template-meal="'+i+'">⭐ Vorlage</button><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></div>'+
-  '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
+  item.innerHTML='<details><summary><span class="mealName">'+name+'</span><br><span class="mealTime">'+m.time+parts+'</span></summary>'+
+  '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>'+
+  itemsHtml+
+  '<div class="historyActions" style="margin-top:10px"><button class="starSmall" type="button" data-template-meal="'+i+'">⭐ Vorlage</button><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></details>';
   h.appendChild(item);
  }
  var buttons=h.querySelectorAll("button[data-index]");
@@ -1037,7 +1075,7 @@ function draftTotals(){
 }
 function addDraftItemFromValues(name, kalorien, protein, fett, kohlenhydrate){
  ensureDraft();
- data.currentDraft.name=String(E("draftName").value||data.currentDraft.name||"");
+ 
  data.currentDraft.items.push({
   id:uid(),
   name:name||"Bestandteil",
@@ -1060,9 +1098,7 @@ function removeDraftItem(index){
 }
 function renderDraft(){
  ensureDraft();
- var nameInput=E("draftName");
- if(nameInput)nameInput.value=data.currentDraft.name||"";
- var list=E("draftItems");
+  var list=E("draftItems");
  if(!list)return;
  list.innerHTML="";
  if(!data.currentDraft.items.length){
@@ -1084,13 +1120,26 @@ function renderDraft(){
   'Gesamt: 🔥 '+nice(t.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(t.protein)+' g Protein<br>🥑 '+nice(t.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(t.kohlenhydrate)+' g Kohlenhydrate':
   'Noch keine Bestandteile hinzugefügt.';
 }
-function saveDraftMeal(){
+
+function openSaveMealDialog(){
  ensureDraft();
  if(!data.currentDraft.items.length){
   alert("Bitte zuerst Bestandteile hinzufügen.");
   return;
  }
- var name=String(E("draftName").value||data.currentDraft.name||"").trim()||"Mahlzeit";
+ E("customMealName").value="";
+ E("saveMealDialog").style.display="flex";
+}
+function closeSaveMealDialog(){
+ E("saveMealDialog").style.display="none";
+}
+function saveDraftMealWithName(name){
+ ensureDraft();
+ if(!data.currentDraft.items.length){
+  alert("Bitte zuerst Bestandteile hinzufügen.");
+  return;
+ }
+ name=String(name||"").trim()||"Mahlzeit";
  var t=draftTotals();
  data.meals.push({
   id:uid(),
@@ -1099,11 +1148,16 @@ function saveDraftMeal(){
   kalorien:Math.round(t.kalorien*10)/10,
   protein:Math.round(t.protein*10)/10,
   fett:Math.round(t.fett*10)/10,
-  kohlenhydrate:Math.round(t.kohlenhydrate*10)/10
+  kohlenhydrate:Math.round(t.kohlenhydrate*10)/10,
+  items:data.currentDraft.items.slice()
  });
  data.currentDraft={name:"",items:[]};
+ closeSaveMealDialog();
  render();
- show("Aktuelle Mahlzeit gespeichert");
+ show("Mahlzeit gespeichert");
+}
+function saveDraftMeal(){
+ openSaveMealDialog();
 }
 function clearDraft(){
  ensureDraft();
@@ -1231,6 +1285,10 @@ E("btnAddToDraft").addEventListener("click",addManualToDraft);
 E("btnAddProductToDraft").addEventListener("click",addProductToDraft);
 E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
 E("btnClearDraft").addEventListener("click",clearDraft);
+E("btnConfirmSaveMeal").addEventListener("click",function(){saveDraftMealWithName(E("customMealName").value);});
+E("btnCancelSaveMeal").addEventListener("click",closeSaveMealDialog);
+var mealChoiceButtons=document.querySelectorAll("button[data-meal-name]");
+for(var mc=0;mc<mealChoiceButtons.length;mc++){mealChoiceButtons[mc].addEventListener("click",function(){saveDraftMealWithName(this.getAttribute("data-meal-name"));});}
 E("draftName").addEventListener("input",function(){ensureDraft();data.currentDraft.name=this.value;save();});
 E("fabMain").addEventListener("click",toggleFab);
 E("fabScan").addEventListener("click",jumpToScannerAndStart);
