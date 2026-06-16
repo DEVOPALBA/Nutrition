@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v25</title>
+<title>Ernährungs-Dashboard v26</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -157,6 +157,14 @@ details.box:not([open]) summary::after{content:"▶"}
 .choiceGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .choiceBtn{background:#e5e7eb;color:#111827;margin:0;padding:12px;border-radius:12px;font-size:15px}
 
+
+.foodResult{border:1px solid #e5e7eb;border-radius:14px;background:#f9fafb;padding:12px;margin-top:10px}
+.foodResultTop{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.foodResultName{font-weight:900}
+.foodResultSource{font-size:12px;color:#6b7280;margin-top:2px}
+.foodValues{font-size:13px;color:#374151;line-height:1.5;margin-top:6px}
+.foodPreview{display:none;margin-top:12px;border:1px solid #e5e7eb;border-radius:14px;background:#ecfdf5;color:#065f46;padding:12px}
+
 @media(max-width:380px){.grid,.summaryGrid,.macroAmpel,.choiceGrid{grid-template-columns:1fr}}
 </style>
 
@@ -220,6 +228,32 @@ window.zxingReady = true;
 <button class="primary" id="btnSaveDraftMeal" type="button">Mahlzeit speichern</button>
 <button class="secondary" id="btnClearDraft" type="button">Aktuelle Mahlzeit leeren</button>
 <div class="smallNote">Scanner, manuelle Eingabe und Vorlagen landen jetzt immer zuerst hier. Erst „Mahlzeit speichern“ schreibt die komplette Mahlzeit in die Tageshistorie.</div>
+</div>
+</details>
+
+
+<details class="box" id="sectionFoodSearch" open>
+<summary>🔎 Lebensmittel suchen</summary>
+<div class="detailsInner">
+<label>Lebensmittel / Produkt</label>
+<input id="foodSearchInput" type="text" placeholder="z. B. Erdbeeren, Banane, Reis gekocht">
+
+<label>Menge in Gramm</label>
+<input id="foodAmountInput" type="number" inputmode="decimal" placeholder="z. B. 150" value="100">
+
+<button class="primary" id="btnSearchFood" type="button">Nährwerte suchen</button>
+
+<div id="foodResults"></div>
+
+<div class="foodPreview" id="foodPreview">
+<div class="productTitle" id="foodPreviewTitle"></div>
+<div class="productValues" id="foodPreviewValues"></div>
+<button class="primary" id="btnAddFoodToDraft" type="button">Zur aktuellen Mahlzeit hinzufügen</button>
+</div>
+
+<div class="smallNote">
+Für häufige Grundnahrungsmittel nutzt die App lokale Richtwerte. Für Produkte wird zusätzlich Open Food Facts abgefragt.
+</div>
 </div>
 </details>
 
@@ -378,6 +412,8 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 <div class="fabMenu" id="fabMenu">
 <button class="fabItem" id="fabScan" type="button">📷 Scanner starten</button>
 <button class="fabItem" id="fabMeal" type="button">🍽️ Mahlzeit</button>
+<button class="fabItem" id="fabFood" type="button">🔎 Lebensmittel</button>
+<button class="fabItem" id="fabFood" type="button">🔎 Lebensmittel</button>
 <button class="fabItem" id="fabTemplate" type="button">⭐ Vorlagen</button>
 <button class="fabItem" id="fabWeight" type="button">⚖️ Gewicht</button>
 </div>
@@ -386,7 +422,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v25_fixed";
+var KEY="ernaehrungs_dashboard_app_v26";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -1184,6 +1220,144 @@ function saveMealAsTemplate(index){
  show("Als Vorlage gespeichert");
 }
 
+
+var selectedFood=null;
+
+var LOCAL_FOODS=[
+ {name:"Erdbeeren", aliases:["erdbeere","erdbeeren","strawberry","strawberries"], kcal100:32, protein100:0.7, fett100:0.3, kh100:7.7, source:"lokaler Richtwert"},
+ {name:"Banane", aliases:["banane","banana"], kcal100:89, protein100:1.1, fett100:0.3, kh100:22.8, source:"lokaler Richtwert"},
+ {name:"Apfel", aliases:["apfel","apple"], kcal100:52, protein100:0.3, fett100:0.2, kh100:13.8, source:"lokaler Richtwert"},
+ {name:"Haferflocken", aliases:["haferflocken","oats","oatmeal"], kcal100:372, protein100:13.5, fett100:7.0, kh100:58.7, source:"lokaler Richtwert"},
+ {name:"Reis gekocht", aliases:["reis gekocht","gekochter reis","rice cooked"], kcal100:130, protein100:2.7, fett100:0.3, kh100:28.0, source:"lokaler Richtwert"},
+ {name:"Reis trocken", aliases:["reis trocken","basmati trocken","rice uncooked"], kcal100:360, protein100:7.0, fett100:0.7, kh100:78.0, source:"lokaler Richtwert"},
+ {name:"Kartoffeln gekocht", aliases:["kartoffeln","kartoffel","potato","kartoffeln gekocht"], kcal100:77, protein100:2.0, fett100:0.1, kh100:17.0, source:"lokaler Richtwert"},
+ {name:"Hähnchenbrust", aliases:["hähnchenbrust","haehnchenbrust","chicken breast"], kcal100:110, protein100:23.0, fett100:1.5, kh100:0.0, source:"lokaler Richtwert"},
+ {name:"Ei", aliases:["ei","eier","egg"], kcal100:143, protein100:12.6, fett100:9.5, kh100:0.7, source:"lokaler Richtwert"},
+ {name:"Magerquark", aliases:["magerquark","quark"], kcal100:67, protein100:12.0, fett100:0.2, kh100:4.0, source:"lokaler Richtwert"},
+ {name:"Skyr natur", aliases:["skyr","skyr natur"], kcal100:62, protein100:11.0, fett100:0.2, kh100:4.0, source:"lokaler Richtwert"},
+ {name:"Joghurt natur 1,5%", aliases:["joghurt","joghurt natur","yogurt"], kcal100:60, protein100:4.3, fett100:1.5, kh100:6.0, source:"lokaler Richtwert"},
+ {name:"Milch 1,5%", aliases:["milch","milk"], kcal100:47, protein100:3.4, fett100:1.5, kh100:4.9, source:"lokaler Richtwert"},
+ {name:"Olivenöl", aliases:["olivenöl","olivenoel","olive oil"], kcal100:884, protein100:0.0, fett100:100.0, kh100:0.0, source:"lokaler Richtwert"},
+ {name:"Avocado", aliases:["avocado"], kcal100:160, protein100:2.0, fett100:14.7, kh100:8.5, source:"lokaler Richtwert"},
+ {name:"Mandeln", aliases:["mandeln","almonds"], kcal100:579, protein100:21.2, fett100:49.9, kh100:21.6, source:"lokaler Richtwert"},
+ {name:"Tomate", aliases:["tomate","tomaten","tomato"], kcal100:18, protein100:0.9, fett100:0.2, kh100:3.9, source:"lokaler Richtwert"},
+ {name:"Gurke", aliases:["gurke","cucumber"], kcal100:15, protein100:0.7, fett100:0.1, kh100:3.6, source:"lokaler Richtwert"}
+];
+
+function normFood(s){
+ return String(s||"").toLowerCase().trim().replace(/[ä]/g,"ae").replace(/[ö]/g,"oe").replace(/[ü]/g,"ue").replace(/[ß]/g,"ss");
+}
+function localFoodMatches(query){
+ var q=normFood(query);
+ var out=[];
+ if(!q)return out;
+ for(var i=0;i<LOCAL_FOODS.length;i++){
+  var f=LOCAL_FOODS[i];
+  var names=[f.name].concat(f.aliases||[]);
+  for(var j=0;j<names.length;j++){
+   var n=normFood(names[j]);
+   if(n.indexOf(q)>=0 || q.indexOf(n)>=0){
+    out.push(f);
+    break;
+   }
+  }
+ }
+ return out;
+}
+function foodFromOFFProduct(p){
+ var n=p.nutriments||{};
+ var kcal=Number(n["energy-kcal_100g"])||0;
+ var protein=Number(n["proteins_100g"])||0;
+ var fett=Number(n["fat_100g"])||0;
+ var kh=Number(n["carbohydrates_100g"])||0;
+ if(!kcal&&!protein&&!fett&&!kh)return null;
+ return {
+  name:p.product_name||p.generic_name||p.brands||"Produkt",
+  kcal100:kcal,
+  protein100:protein,
+  fett100:fett,
+  kh100:kh,
+  source:"Open Food Facts"
+ };
+}
+async function searchFood(){
+ var query=String(E("foodSearchInput").value||"").trim();
+ var box=E("foodResults");
+ E("foodPreview").style.display="none";
+ selectedFood=null;
+ if(!query){alert("Bitte ein Lebensmittel eingeben.");return;}
+ box.innerHTML='<div class="empty">Suche läuft...</div>';
+
+ var results=localFoodMatches(query);
+
+ try{
+  var url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(query)+"&search_simple=1&action=process&json=1&page_size=6&fields=product_name,generic_name,brands,nutriments";
+  var response=await fetch(url);
+  var json=await response.json();
+  if(json&&json.products){
+   for(var i=0;i<json.products.length;i++){
+    var f=foodFromOFFProduct(json.products[i]);
+    if(f)results.push(f);
+   }
+  }
+ }catch(e){
+  // Offline/Fehler: lokale Treffer reichen.
+ }
+
+ renderFoodResults(results.slice(0,8));
+}
+function renderFoodResults(results){
+ var box=E("foodResults");
+ box.innerHTML="";
+ if(!results.length){
+  box.innerHTML='<div class="empty">Kein Treffer. Du kannst das Lebensmittel weiterhin manuell eintragen.</div>';
+  return;
+ }
+ for(var i=0;i<results.length;i++){
+  var f=results[i];
+  var div=document.createElement("div");
+  div.className="foodResult";
+  div.innerHTML='<div class="foodResultTop"><div><div class="foodResultName">'+escapeHtml(f.name)+'</div><div class="foodResultSource">'+escapeHtml(f.source||"")+'</div></div><button class="addSmall" type="button" data-food-index="'+i+'">Auswählen</button></div>'+
+  '<div class="foodValues">pro 100 g: 🔥 '+nice(f.kcal100)+' kcal &nbsp; | &nbsp; 🥩 '+nice(f.protein100)+' g Protein<br>🥑 '+nice(f.fett100)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(f.kh100)+' g Kohlenhydrate</div>';
+  box.appendChild(div);
+ }
+ var buttons=box.querySelectorAll("button[data-food-index]");
+ for(var b=0;b<buttons.length;b++){
+  buttons[b].onclick=function(){
+   var idx=parseInt(this.getAttribute("data-food-index"),10);
+   selectedFood=results[idx];
+   renderSelectedFood();
+  };
+ }
+}
+function renderSelectedFood(){
+ if(!selectedFood)return;
+ var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
+ var factor=amount/100;
+ var kcal=selectedFood.kcal100*factor;
+ var protein=selectedFood.protein100*factor;
+ var fett=selectedFood.fett100*factor;
+ var kh=selectedFood.kh100*factor;
+ E("foodPreviewTitle").textContent=selectedFood.name+" ("+nice(amount)+" g)";
+ E("foodPreviewValues").innerHTML=
+  "🔥 "+nice(kcal)+" kcal &nbsp; | &nbsp; 🥩 "+nice(protein)+" g Protein<br>"+
+  "🥑 "+nice(fett)+" g Fett &nbsp; | &nbsp; 🍞 "+nice(kh)+" g Kohlenhydrate";
+ E("foodPreview").style.display="block";
+}
+function addSelectedFoodToDraft(){
+ if(!selectedFood){alert("Bitte zuerst ein Lebensmittel auswählen.");return;}
+ var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
+ var factor=amount/100;
+ addDraftItemFromValues(
+  selectedFood.name+" ("+nice(amount)+" g)",
+  Math.round(selectedFood.kcal100*factor*10)/10,
+  Math.round(selectedFood.protein100*factor*10)/10,
+  Math.round(selectedFood.fett100*factor*10)/10,
+  Math.round(selectedFood.kh100*factor*10)/10
+ );
+ jumpToSection("sectionDraft");
+}
+
 function createBackup(){
  recalc();
  var backup={
@@ -1289,6 +1463,9 @@ E("btnAddToDraft").addEventListener("click",addManualToDraft);
 E("btnAddProductToDraft").addEventListener("click",addProductToDraft);
 E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
 E("btnClearDraft").addEventListener("click",clearDraft);
+E("btnSearchFood").addEventListener("click",searchFood);
+E("foodAmountInput").addEventListener("input",renderSelectedFood);
+E("btnAddFoodToDraft").addEventListener("click",addSelectedFoodToDraft);
 E("btnConfirmSaveMeal").addEventListener("click",function(){saveDraftMealWithName(E("customMealName").value);});
 E("btnCancelSaveMeal").addEventListener("click",closeSaveMealDialog);
 var mealChoiceButtons=document.querySelectorAll("button[data-meal-name]");
@@ -1297,6 +1474,7 @@ E("draftName").addEventListener("input",function(){ensureDraft();data.currentDra
 E("fabMain").addEventListener("click",toggleFab);
 E("fabScan").addEventListener("click",jumpToScannerAndStart);
 E("fabMeal").addEventListener("click",function(){closeFab();jumpToSection("sectionMeal");});
+E("fabFood").addEventListener("click",function(){closeFab();jumpToSection("sectionFoodSearch");});
 E("fabTemplate").addEventListener("click",function(){closeFab();jumpToSection("sectionTemplates");});
 E("fabWeight").addEventListener("click",function(){closeFab();jumpToSection("sectionWeight");});
 render();
