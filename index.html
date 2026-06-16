@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v27</title>
+<title>Ernährungs-Dashboard v28</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -165,7 +165,14 @@ details.box:not([open]) summary::after{content:"▶"}
 .foodValues{font-size:13px;color:#374151;line-height:1.5;margin-top:6px}
 .foodPreview{display:none;margin-top:12px;border:1px solid #e5e7eb;border-radius:14px;background:#ecfdf5;color:#065f46;padding:12px}
 
-@media(max-width:380px){.grid,.summaryGrid,.macroAmpel,.choiceGrid{grid-template-columns:1fr}}
+
+.foodStatus{font-size:13px;color:#6b7280;margin-top:10px;line-height:1.45}
+.foodStatus.warn{color:#92400e;background:#fef3c7;border-radius:10px;padding:9px}
+.recentFoodGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.recentFoodBtn{background:#e5e7eb;color:#111827;margin:0;padding:10px;border-radius:12px;font-size:14px}
+.customFoodBox{border:1px dashed #9ca3af;border-radius:14px;padding:12px;margin-top:14px;background:#f9fafb}
+
+@media(max-width:380px){.grid,.summaryGrid,.macroAmpel,.choiceGrid,.recentFoodGrid{grid-template-columns:1fr}}
 </style>
 
 <script type="module">
@@ -242,6 +249,10 @@ window.zxingReady = true;
 <input id="foodAmountInput" type="number" inputmode="decimal" placeholder="z. B. 150" value="100">
 
 <button class="primary" id="btnSearchFood" type="button">Nährwerte suchen</button>
+<div id="foodStatus" class="foodStatus"></div>
+
+<h3>Zuletzt verwendet</h3>
+<div id="recentFoods" class="recentFoodGrid"></div>
 
 <div id="foodResults"></div>
 
@@ -251,8 +262,22 @@ window.zxingReady = true;
 <button class="primary" id="btnAddFoodToDraft" type="button">Zur aktuellen Mahlzeit hinzufügen</button>
 </div>
 
+
+<details class="customFoodBox">
+<summary><b>➕ Eigenes Lebensmittel anlegen</b></summary>
+<label>Name</label>
+<input id="customFoodName" type="text" placeholder="z. B. Lieblingsbrot">
+<div class="grid">
+<div><label>Kalorien / 100g</label><input id="customFoodKcal" type="number" inputmode="decimal"></div>
+<div><label>Protein / 100g</label><input id="customFoodProtein" type="number" inputmode="decimal"></div>
+<div><label>Fett / 100g</label><input id="customFoodFett" type="number" inputmode="decimal"></div>
+<div><label>KH / 100g</label><input id="customFoodKH" type="number" inputmode="decimal"></div>
+</div>
+<button class="primary" id="btnSaveCustomFood" type="button">Eigenes Lebensmittel speichern</button>
+</details>
+
 <div class="smallNote">
-Für häufige Grundnahrungsmittel nutzt die App lokale Richtwerte. Für Produkte wird zusätzlich Open Food Facts abgefragt.
+Für häufige Grundnahrungsmittel nutzt die App lokale Richtwerte, eigene Lebensmittel werden lokal gespeichert. Für Produkte wird zusätzlich Open Food Facts abgefragt.
 </div>
 </div>
 </details>
@@ -421,7 +446,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v27";
+var KEY="ernaehrungs_dashboard_app_v28";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -468,6 +493,8 @@ function load(){
  if(!d.weights)d.weights=[];
  if(!d.currentDraft)d.currentDraft={name:"",items:[]};
  if(!d.currentDraft.items)d.currentDraft.items=[];
+ if(!d.customFoods)d.customFoods=[];
+ if(!d.recentFoods)d.recentFoods=[];
  if(d.date!==today()){
    archiveDay(d, false);
    d.date=today();
@@ -739,7 +766,7 @@ function render(){
  renderCalorieRing();
  metric("protein","g");metric("fett","g");metric("kohlenhydrate","g");
  E("zielKalorien").value=data.goals.kalorien;E("zielProtein").value=data.goals.protein;E("zielFett").value=data.goals.fett;E("zielKohlenhydrate").value=data.goals.kohlenhydrate;
- renderQuickStats();renderHeaderWeight();renderMacroAmpel();renderDraft();renderTemplates();renderHistory();renderWeek();renderCalorieTrend();renderWeight();renderWeightChart();save();
+ renderQuickStats();renderHeaderWeight();renderMacroAmpel();renderDraft();renderTemplates();renderHistory();renderWeek();renderCalorieTrend();renderWeight();renderWeightChart();renderRecentFoods();save();
 }
 function show(t){E("meldung").textContent=t;E("meldung").style.display="block";setTimeout(function(){E("meldung").style.display="none"},1300)}
 function clearInputs(){E("inName").value="";E("inKalorien").value="";E("inProtein").value="";E("inFett").value="";E("inKohlenhydrate").value=""}
@@ -1220,7 +1247,10 @@ function saveMealAsTemplate(index){
 }
 
 
+
 var selectedFood=null;
+var lastFoodResults=[];
+var foodSearchRunning=false;
 
 var LOCAL_FOODS=[
  {name:"Erdbeeren", aliases:["erdbeere","erdbeeren","strawberry","strawberries"], kcal100:32, protein100:0.7, fett100:0.3, kh100:7.7, source:"lokaler Richtwert"},
@@ -1240,26 +1270,48 @@ var LOCAL_FOODS=[
  {name:"Avocado", aliases:["avocado"], kcal100:160, protein100:2.0, fett100:14.7, kh100:8.5, source:"lokaler Richtwert"},
  {name:"Mandeln", aliases:["mandeln","almonds"], kcal100:579, protein100:21.2, fett100:49.9, kh100:21.6, source:"lokaler Richtwert"},
  {name:"Tomate", aliases:["tomate","tomaten","tomato"], kcal100:18, protein100:0.9, fett100:0.2, kh100:3.9, source:"lokaler Richtwert"},
- {name:"Gurke", aliases:["gurke","cucumber"], kcal100:15, protein100:0.7, fett100:0.1, kh100:3.6, source:"lokaler Richtwert"}
+ {name:"Gurke", aliases:["gurke","cucumber"], kcal100:15, protein100:0.7, fett100:0.1, kh100:3.6, source:"lokaler Richtwert"},
+ {name:"Erdnüsse", aliases:["erdnuss","erdnüsse","erdnuesse","peanuts"], kcal100:567, protein100:25.8, fett100:49.2, kh100:16.1, source:"lokaler Richtwert"}
 ];
 
 function normFood(s){
  return String(s||"").toLowerCase().trim().replace(/[ä]/g,"ae").replace(/[ö]/g,"oe").replace(/[ü]/g,"ue").replace(/[ß]/g,"ss");
 }
+function allFoods(){
+ var own=(data.customFoods||[]).map(function(f){
+  return {name:f.name, aliases:f.aliases||[], kcal100:f.kcal100, protein100:f.protein100, fett100:f.fett100, kh100:f.kh100, source:"eigenes Lebensmittel"};
+ });
+ return own.concat(LOCAL_FOODS);
+}
 function localFoodMatches(query){
  var q=normFood(query);
  var out=[];
  if(!q)return out;
- for(var i=0;i<LOCAL_FOODS.length;i++){
-  var f=LOCAL_FOODS[i];
+ var foods=allFoods();
+ for(var i=0;i<foods.length;i++){
+  var f=foods[i];
   var names=[f.name].concat(f.aliases||[]);
+  var best=false;
   for(var j=0;j<names.length;j++){
    var n=normFood(names[j]);
    if(n.indexOf(q)>=0 || q.indexOf(n)>=0){
-    out.push(f);
-    break;
+    best=true; break;
    }
+   var qParts=q.split(/\s+/);
+   var hits=0;
+   for(var p=0;p<qParts.length;p++){if(qParts[p]&&n.indexOf(qParts[p])>=0)hits++}
+   if(hits>0 && hits===qParts.filter(Boolean).length){best=true;break}
   }
+  if(best)out.push(f);
+ }
+ return out;
+}
+function dedupeFoods(arr){
+ var seen={}, out=[];
+ for(var i=0;i<arr.length;i++){
+  var f=arr[i];
+  var key=normFood(f.name)+"|"+Math.round((Number(f.kcal100)||0)*10)+"|"+Math.round((Number(f.protein100)||0)*10);
+  if(!seen[key]){seen[key]=true;out.push(f)}
  }
  return out;
 }
@@ -1279,19 +1331,38 @@ function foodFromOFFProduct(p){
   source:"Open Food Facts"
  };
 }
+function fetchWithTimeout(url, ms){
+ return new Promise(function(resolve,reject){
+  var done=false;
+  var timer=setTimeout(function(){if(!done){done=true;reject(new Error("timeout"))}},ms);
+  fetch(url).then(function(r){if(!done){done=true;clearTimeout(timer);resolve(r)}}).catch(function(e){if(!done){done=true;clearTimeout(timer);reject(e)}});
+ });
+}
 async function searchFood(){
+ if(foodSearchRunning)return;
  var query=String(E("foodSearchInput").value||"").trim();
  var box=E("foodResults");
+ var status=E("foodStatus");
  E("foodPreview").style.display="none";
  selectedFood=null;
  if(!query){alert("Bitte ein Lebensmittel eingeben.");return;}
- box.innerHTML='<div class="empty">Suche läuft...</div>';
+
+ foodSearchRunning=true;
+ E("btnSearchFood").disabled=true;
+ status.className="foodStatus";
+ status.textContent="Suche läuft...";
+ box.innerHTML="";
 
  var results=localFoodMatches(query);
+ if(results.length){
+  renderFoodResults(dedupeFoods(results).slice(0,8));
+  status.textContent="Lokale Treffer gefunden. Online-Suche läuft noch...";
+ }
 
+ var onlineWarning="";
  try{
-  var url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(query)+"&search_simple=1&action=process&json=1&page_size=6&fields=product_name,generic_name,brands,nutriments";
-  var response=await fetch(url);
+  var url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(query)+"&search_simple=1&action=process&json=1&page_size=8&fields=product_name,generic_name,brands,nutriments";
+  var response=await fetchWithTimeout(url,4500);
   var json=await response.json();
   if(json&&json.products){
    for(var i=0;i<json.products.length;i++){
@@ -1300,17 +1371,30 @@ async function searchFood(){
    }
   }
  }catch(e){
-  // Offline/Fehler: lokale Treffer reichen.
+  onlineWarning="Online-Suche momentan nicht erreichbar oder zu langsam. Lokale/eigene Treffer werden angezeigt.";
  }
 
- renderFoodResults(results.slice(0,8));
+ results=dedupeFoods(results).slice(0,10);
+ renderFoodResults(results);
+
+ if(results.length){
+  status.className=onlineWarning?"foodStatus warn":"foodStatus";
+  status.textContent=onlineWarning||("Treffer: "+results.length);
+ }else{
+  status.className="foodStatus warn";
+  status.textContent=onlineWarning||"Kein Treffer gefunden. Du kannst das Lebensmittel unten als eigenes Lebensmittel anlegen.";
+ }
+
+ foodSearchRunning=false;
+ E("btnSearchFood").disabled=false;
 }
 function renderFoodResults(results){
  var box=E("foodResults");
  box.innerHTML="";
  E("foodPreview").style.display="none";
+ lastFoodResults=results||[];
  if(!results.length){
-  box.innerHTML='<div class="empty">Kein Treffer. Du kannst das Lebensmittel weiterhin manuell eintragen.</div>';
+  box.innerHTML='<div class="empty">Kein Treffer. Du kannst das Lebensmittel weiterhin manuell eintragen oder als eigenes Lebensmittel speichern.</div>';
   return;
  }
  for(var i=0;i<results.length;i++){
@@ -1327,12 +1411,11 @@ function renderFoodResults(results){
  for(var b=0;b<buttons.length;b++){
   buttons[b].onclick=function(){
    var idx=parseInt(this.getAttribute("data-food-index"),10);
-   selectedFood=results[idx];
+   selectedFood=lastFoodResults[idx];
    renderSelectedFood(idx);
   };
  }
 }
-
 function renderSelectedFood(index){
  if(!selectedFood)return;
  var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
@@ -1342,19 +1425,12 @@ function renderSelectedFood(index){
  var fett=selectedFood.fett100*factor;
  var kh=selectedFood.kh100*factor;
 
- // Clear all inline previews.
  var previews=document.querySelectorAll(".foodInlinePreview");
- for(var i=0;i<previews.length;i++){previews[i].style.display="none";previews[i].innerHTML="";}
+ for(var i=0;i<previews.length;i++){previews[i].style.display="none";previews[i].innerHTML="";previews[i].setAttribute("data-active","0");}
 
- // If called from amount change, reuse selected card if possible.
  if(index===undefined||index===null){
-  var cards=document.querySelectorAll("[data-food-card]");
-  for(var c=0;c<cards.length;c++){
-   var preview=cards[c].querySelector(".foodInlinePreview");
-   if(preview&&preview.getAttribute("data-active")==="1"){
-    index=parseInt(preview.getAttribute("data-food-preview"),10);
-    break;
-   }
+  for(var r=0;r<lastFoodResults.length;r++){
+   if(lastFoodResults[r]===selectedFood){index=r;break}
   }
  }
 
@@ -1379,7 +1455,39 @@ function renderSelectedFood(index){
  if(btn)btn.onclick=addSelectedFoodToDraft;
  target.scrollIntoView({behavior:"smooth",block:"center"});
 }
-
+function rememberFood(food){
+ if(!food)return;
+ if(!data.recentFoods)data.recentFoods=[];
+ var entry={name:food.name,kcal100:food.kcal100,protein100:food.protein100,fett100:food.fett100,kh100:food.kh100,source:food.source||""};
+ data.recentFoods=data.recentFoods.filter(function(f){return normFood(f.name)!==normFood(entry.name)});
+ data.recentFoods.unshift(entry);
+ while(data.recentFoods.length>8)data.recentFoods.pop();
+}
+function renderRecentFoods(){
+ var box=E("recentFoods");
+ if(!box)return;
+ box.innerHTML="";
+ var arr=data.recentFoods||[];
+ if(!arr.length){box.innerHTML='<div class="empty">Noch keine Lebensmittel verwendet.</div>';return}
+ for(var i=0;i<arr.length;i++){
+  var f=arr[i];
+  var btn=document.createElement("button");
+  btn.className="recentFoodBtn";
+  btn.type="button";
+  btn.textContent=f.name;
+  btn.setAttribute("data-recent-food",i);
+  box.appendChild(btn);
+ }
+ var buttons=box.querySelectorAll("button[data-recent-food]");
+ for(var b=0;b<buttons.length;b++){
+  buttons[b].onclick=function(){
+   var idx=parseInt(this.getAttribute("data-recent-food"),10);
+   selectedFood=(data.recentFoods||[])[idx];
+   renderFoodResults([selectedFood]);
+   renderSelectedFood(0);
+  };
+ }
+}
 function addSelectedFoodToDraft(){
  if(!selectedFood){alert("Bitte zuerst ein Lebensmittel auswählen.");return;}
  var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
@@ -1391,7 +1499,33 @@ function addSelectedFoodToDraft(){
   Math.round(selectedFood.fett100*factor*10)/10,
   Math.round(selectedFood.kh100*factor*10)/10
  );
+ rememberFood(selectedFood);
+ renderRecentFoods();
  jumpToSection("sectionDraft");
+}
+function saveCustomFood(){
+ var name=String(E("customFoodName").value||"").trim();
+ if(!name){alert("Bitte einen Namen eingeben.");return}
+ var item={
+  name:name,
+  kcal100:val("customFoodKcal"),
+  protein100:val("customFoodProtein"),
+  fett100:val("customFoodFett"),
+  kh100:val("customFoodKH"),
+  source:"eigenes Lebensmittel"
+ };
+ if(!data.customFoods)data.customFoods=[];
+ data.customFoods=data.customFoods.filter(function(f){return normFood(f.name)!==normFood(item.name)});
+ data.customFoods.unshift(item);
+ save();
+ E("customFoodName").value="";
+ E("customFoodKcal").value="";
+ E("customFoodProtein").value="";
+ E("customFoodFett").value="";
+ E("customFoodKH").value="";
+ E("foodSearchInput").value=item.name;
+ show("Eigenes Lebensmittel gespeichert");
+ searchFood();
 }
 
 function createBackup(){
@@ -1502,6 +1636,7 @@ E("btnClearDraft").addEventListener("click",clearDraft);
 E("btnSearchFood").addEventListener("click",searchFood);
 E("foodAmountInput").addEventListener("input",function(){renderSelectedFood();});
 E("btnAddFoodToDraft").addEventListener("click",addSelectedFoodToDraft);
+E("btnSaveCustomFood").addEventListener("click",saveCustomFood);
 E("btnConfirmSaveMeal").addEventListener("click",function(){saveDraftMealWithName(E("customMealName").value);});
 E("btnCancelSaveMeal").addEventListener("click",closeSaveMealDialog);
 var mealChoiceButtons=document.querySelectorAll("button[data-meal-name]");
