@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v26</title>
+<title>Ernährungs-Dashboard v27</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -413,7 +413,6 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 <button class="fabItem" id="fabScan" type="button">📷 Scanner starten</button>
 <button class="fabItem" id="fabMeal" type="button">🍽️ Mahlzeit</button>
 <button class="fabItem" id="fabFood" type="button">🔎 Lebensmittel</button>
-<button class="fabItem" id="fabFood" type="button">🔎 Lebensmittel</button>
 <button class="fabItem" id="fabTemplate" type="button">⭐ Vorlagen</button>
 <button class="fabItem" id="fabWeight" type="button">⚖️ Gewicht</button>
 </div>
@@ -422,7 +421,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v26";
+var KEY="ernaehrungs_dashboard_app_v27";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -1309,6 +1308,7 @@ async function searchFood(){
 function renderFoodResults(results){
  var box=E("foodResults");
  box.innerHTML="";
+ E("foodPreview").style.display="none";
  if(!results.length){
   box.innerHTML='<div class="empty">Kein Treffer. Du kannst das Lebensmittel weiterhin manuell eintragen.</div>';
   return;
@@ -1317,8 +1317,10 @@ function renderFoodResults(results){
   var f=results[i];
   var div=document.createElement("div");
   div.className="foodResult";
+  div.setAttribute("data-food-card", i);
   div.innerHTML='<div class="foodResultTop"><div><div class="foodResultName">'+escapeHtml(f.name)+'</div><div class="foodResultSource">'+escapeHtml(f.source||"")+'</div></div><button class="addSmall" type="button" data-food-index="'+i+'">Auswählen</button></div>'+
-  '<div class="foodValues">pro 100 g: 🔥 '+nice(f.kcal100)+' kcal &nbsp; | &nbsp; 🥩 '+nice(f.protein100)+' g Protein<br>🥑 '+nice(f.fett100)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(f.kh100)+' g Kohlenhydrate</div>';
+  '<div class="foodValues">pro 100 g: 🔥 '+nice(f.kcal100)+' kcal &nbsp; | &nbsp; 🥩 '+nice(f.protein100)+' g Protein<br>🥑 '+nice(f.fett100)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(f.kh100)+' g Kohlenhydrate</div>'+
+  '<div class="foodInlinePreview" data-food-preview="'+i+'" style="display:none"></div>';
   box.appendChild(div);
  }
  var buttons=box.querySelectorAll("button[data-food-index]");
@@ -1326,11 +1328,12 @@ function renderFoodResults(results){
   buttons[b].onclick=function(){
    var idx=parseInt(this.getAttribute("data-food-index"),10);
    selectedFood=results[idx];
-   renderSelectedFood();
+   renderSelectedFood(idx);
   };
  }
 }
-function renderSelectedFood(){
+
+function renderSelectedFood(index){
  if(!selectedFood)return;
  var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
  var factor=amount/100;
@@ -1338,12 +1341,45 @@ function renderSelectedFood(){
  var protein=selectedFood.protein100*factor;
  var fett=selectedFood.fett100*factor;
  var kh=selectedFood.kh100*factor;
- E("foodPreviewTitle").textContent=selectedFood.name+" ("+nice(amount)+" g)";
- E("foodPreviewValues").innerHTML=
-  "🔥 "+nice(kcal)+" kcal &nbsp; | &nbsp; 🥩 "+nice(protein)+" g Protein<br>"+
-  "🥑 "+nice(fett)+" g Fett &nbsp; | &nbsp; 🍞 "+nice(kh)+" g Kohlenhydrate";
- E("foodPreview").style.display="block";
+
+ // Clear all inline previews.
+ var previews=document.querySelectorAll(".foodInlinePreview");
+ for(var i=0;i<previews.length;i++){previews[i].style.display="none";previews[i].innerHTML="";}
+
+ // If called from amount change, reuse selected card if possible.
+ if(index===undefined||index===null){
+  var cards=document.querySelectorAll("[data-food-card]");
+  for(var c=0;c<cards.length;c++){
+   var preview=cards[c].querySelector(".foodInlinePreview");
+   if(preview&&preview.getAttribute("data-active")==="1"){
+    index=parseInt(preview.getAttribute("data-food-preview"),10);
+    break;
+   }
+  }
+ }
+
+ var target=document.querySelector('.foodInlinePreview[data-food-preview="'+index+'"]');
+ if(!target){
+  E("foodPreviewTitle").textContent=selectedFood.name+" ("+nice(amount)+" g)";
+  E("foodPreviewValues").innerHTML=
+   "🔥 "+nice(kcal)+" kcal &nbsp; | &nbsp; 🥩 "+nice(protein)+" g Protein<br>"+
+   "🥑 "+nice(fett)+" g Fett &nbsp; | &nbsp; 🍞 "+nice(kh)+" g Kohlenhydrate";
+  E("foodPreview").style.display="block";
+  return;
+ }
+
+ target.setAttribute("data-active","1");
+ target.innerHTML='<div class="foodPreview" style="display:block;margin-top:10px">'+
+  '<div class="productTitle">'+escapeHtml(selectedFood.name)+" ("+nice(amount)+" g)"+'</div>'+
+  '<div class="productValues">🔥 '+nice(kcal)+' kcal &nbsp; | &nbsp; 🥩 '+nice(protein)+' g Protein<br>🥑 '+nice(fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(kh)+' g Kohlenhydrate</div>'+
+  '<button class="primary" type="button" data-add-selected-food="1">Zur aktuellen Mahlzeit hinzufügen</button>'+
+  '</div>';
+ target.style.display="block";
+ var btn=target.querySelector("button[data-add-selected-food]");
+ if(btn)btn.onclick=addSelectedFoodToDraft;
+ target.scrollIntoView({behavior:"smooth",block:"center"});
 }
+
 function addSelectedFoodToDraft(){
  if(!selectedFood){alert("Bitte zuerst ein Lebensmittel auswählen.");return;}
  var amount=Number(String(E("foodAmountInput").value||"100").replace(",","."))||100;
@@ -1464,7 +1500,7 @@ E("btnAddProductToDraft").addEventListener("click",addProductToDraft);
 E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
 E("btnClearDraft").addEventListener("click",clearDraft);
 E("btnSearchFood").addEventListener("click",searchFood);
-E("foodAmountInput").addEventListener("input",renderSelectedFood);
+E("foodAmountInput").addEventListener("input",function(){renderSelectedFood();});
 E("btnAddFoodToDraft").addEventListener("click",addSelectedFoodToDraft);
 E("btnConfirmSaveMeal").addEventListener("click",function(){saveDraftMealWithName(E("customMealName").value);});
 E("btnCancelSaveMeal").addEventListener("click",closeSaveMealDialog);
