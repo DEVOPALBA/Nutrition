@@ -209,7 +209,7 @@ window.zxingReady = true;
 <div id="draftTotal" class="draftTotal">Noch keine Bestandteile hinzugefügt.</div>
 <button class="primary" id="btnSaveDraftMeal" type="button">Mahlzeit speichern</button>
 <button class="secondary" id="btnClearDraft" type="button">Aktuelle Mahlzeit leeren</button>
-<div class="smallNote">Scanner, manuelle Eingabe und Vorlagen fügen Bestandteile zu dieser aktuellen Mahlzeit hinzu.</div>
+<div class="smallNote">Scanner, manuelle Eingabe und Vorlagen fügen Bestandteile zu dieser aktuellen Mahlzeit hinzu. Erst „Mahlzeit speichern“ schreibt sie in die Tageshistorie.</div>
 </div>
 </details>
 
@@ -356,7 +356,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v23";
+var KEY="ernaehrungs_dashboard_app_v23_fixed";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -415,32 +415,13 @@ function load(){
 var data=load();save();
 var editingMealIndex=null;
 
-function mealTotals(meal){
- if(meal&&meal.items&&meal.items.length){
-  var t=emptyValues();
-  for(var i=0;i<meal.items.length;i++){
-   t.kalorien+=Number(meal.items[i].kalorien)||0;
-   t.protein+=Number(meal.items[i].protein)||0;
-   t.fett+=Number(meal.items[i].fett)||0;
-   t.kohlenhydrate+=Number(meal.items[i].kohlenhydrate)||0;
-  }
-  return t;
- }
- return {
-  kalorien:Number(meal&&meal.kalorien)||0,
-  protein:Number(meal&&meal.protein)||0,
-  fett:Number(meal&&meal.fett)||0,
-  kohlenhydrate:Number(meal&&meal.kohlenhydrate)||0
- };
-}
 function recalc(){
  data.values=emptyValues();
  for(var i=0;i<data.meals.length;i++){
-  var t=mealTotals(data.meals[i]);
-  data.values.kalorien+=t.kalorien;
-  data.values.protein+=t.protein;
-  data.values.fett+=t.fett;
-  data.values.kohlenhydrate+=t.kohlenhydrate;
+  data.values.kalorien+=Number(data.meals[i].kalorien)||0;
+  data.values.protein+=Number(data.meals[i].protein)||0;
+  data.values.fett+=Number(data.meals[i].fett)||0;
+  data.values.kohlenhydrate+=Number(data.meals[i].kohlenhydrate)||0;
  }
 }
 function dayHasValues(values){
@@ -449,8 +430,6 @@ function dayHasValues(values){
 function archiveDay(d, force){
  if(!d.week)d.week=[];
  if(!d.weights)d.weights=[];
- if(!d.currentDraft)d.currentDraft={name:"",items:[]};
- if(!d.currentDraft.items)d.currentDraft.items=[];
  var entry={
   date:d.date,
   kalorien:Number(d.values.kalorien)||0,
@@ -518,11 +497,10 @@ function renderHistory(){
  if(!data.meals.length){h.innerHTML='<div class="empty">Noch keine Mahlzeit eingetragen.</div>';return}
  for(var i=data.meals.length-1;i>=0;i--){
   var m=data.meals[i], name=m.name?escapeHtml(m.name):"Mahlzeit", item=document.createElement("div");
-  var t=mealTotals(m);
   var parts=(m.items&&m.items.length)?(" · "+m.items.length+" Bestandteile"):"";
   item.className="historyItem";
   item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+parts+'</span></span><div class="historyActions"><button class="starSmall" type="button" data-template-meal="'+i+'">⭐ Vorlage</button><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></div>'+
-  '<div class="historyValues">🔥 '+nice(t.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(t.protein)+' g Protein<br>🥑 '+nice(t.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(t.kohlenhydrate)+' g Kohlenhydrate</div>';
+  '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
   h.appendChild(item);
  }
  var buttons=h.querySelectorAll("button[data-index]");
@@ -694,10 +672,13 @@ function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E
 
 
 
-function draftTotals(){
- var t=emptyValues();
+function ensureDraft(){
  if(!data.currentDraft)data.currentDraft={name:"",items:[]};
  if(!data.currentDraft.items)data.currentDraft.items=[];
+}
+function draftTotals(){
+ ensureDraft();
+ var t={kalorien:0,protein:0,fett:0,kohlenhydrate:0};
  for(var i=0;i<data.currentDraft.items.length;i++){
   t.kalorien+=Number(data.currentDraft.items[i].kalorien)||0;
   t.protein+=Number(data.currentDraft.items[i].protein)||0;
@@ -707,24 +688,23 @@ function draftTotals(){
  return t;
 }
 function addDraftItem(item){
- if(!data.currentDraft)data.currentDraft={name:"",items:[]};
- if(!data.currentDraft.items)data.currentDraft.items=[];
+ ensureDraft();
  data.currentDraft.name=String(E("draftName").value||data.currentDraft.name||"");
+ if(!item.name)item.name="Bestandteil";
  item.id=uid();
  data.currentDraft.items.push(item);
  render();
  show("Bestandteil hinzugefügt");
 }
 function removeDraftItem(index){
- if(!data.currentDraft||!data.currentDraft.items)return;
+ ensureDraft();
  if(index<0||index>=data.currentDraft.items.length)return;
  data.currentDraft.items.splice(index,1);
  render();
  show("Bestandteil gelöscht");
 }
 function renderDraft(){
- if(!data.currentDraft)data.currentDraft={name:"",items:[]};
- if(!data.currentDraft.items)data.currentDraft.items=[];
+ ensureDraft();
  E("draftName").value=data.currentDraft.name||"";
  var list=E("draftItems");
  list.innerHTML="";
@@ -748,7 +728,8 @@ function renderDraft(){
   'Noch keine Bestandteile hinzugefügt.';
 }
 function saveDraftMeal(){
- if(!data.currentDraft||!data.currentDraft.items||!data.currentDraft.items.length){
+ ensureDraft();
+ if(!data.currentDraft.items.length){
   alert("Bitte zuerst Bestandteile hinzufügen.");
   return;
  }
@@ -770,19 +751,22 @@ function saveDraftMeal(){
  show("Mahlzeit gespeichert");
 }
 function clearDraft(){
- if(data.currentDraft&&data.currentDraft.items&&data.currentDraft.items.length){
-  if(!confirm("Aktuelle Mahlzeit wirklich leeren?"))return;
- }
+ ensureDraft();
+ if(data.currentDraft.items.length&&!confirm("Aktuelle Mahlzeit wirklich leeren?"))return;
  data.currentDraft={name:"",items:[]};
  render();
  show("Aktuelle Mahlzeit geleert");
 }
 function saveMealAsTemplate(index){
  if(index<0||index>=data.meals.length)return;
- var meal=data.meals[index];
- var t=mealTotals(meal);
- var name=meal.name||"Mahlzeit";
- data.templates.push({name:name,kalorien:Math.round(t.kalorien*10)/10,protein:Math.round(t.protein*10)/10,fett:Math.round(t.fett*10)/10,kohlenhydrate:Math.round(t.kohlenhydrate*10)/10});
+ var m=data.meals[index];
+ data.templates.push({
+  name:m.name||"Mahlzeit",
+  kalorien:Number(m.kalorien)||0,
+  protein:Number(m.protein)||0,
+  fett:Number(m.fett)||0,
+  kohlenhydrate:Number(m.kohlenhydrate)||0
+ });
  render();
  show("Als Vorlage gespeichert");
 }
@@ -925,30 +909,19 @@ function addProductMeal(){
  }
  var portion=Number(String(E("productPortion").value||"100").replace(",","."))||100;
  var factor=portion/100;
- var m={
+ addDraftItem({
   name:currentProduct.name+" ("+nice(portion)+" g)",
   kalorien:Math.round(currentProduct.kcal100*factor*10)/10,
   protein:Math.round(currentProduct.protein100*factor*10)/10,
   fett:Math.round(currentProduct.fett100*factor*10)/10,
   kohlenhydrate:Math.round(currentProduct.kh100*factor*10)/10
- };
- addDraftItem(m);
+ });
  jumpToSection("sectionDraft");
 }
 
 function editMeal(index){
  if(index<0||index>=data.meals.length)return;
  var m=data.meals[index];
-
- if(m.items&&m.items.length){
-  data.currentDraft={name:m.name||"Mahlzeit",items:m.items.slice()};
-  data.meals.splice(index,1);
-  render();
-  jumpToSection("sectionDraft");
-  show("Mahlzeit in aktuelle Mahlzeit geladen");
-  return;
- }
-
  editingMealIndex=index;
  E("inName").value=m.name||"";
  E("inKalorien").value=nice(m.kalorien);
@@ -959,7 +932,7 @@ function editMeal(index){
  E("btnCancelEdit").style.display="block";
  E("editNotice").style.display="block";
  E("editNotice").textContent="Bearbeitungsmodus: "+(m.name||"Mahlzeit")+" wird bearbeitet";
- jumpToSection("sectionMeal");
+ window.scrollTo({top:E("btnAdd").getBoundingClientRect().top+window.scrollY-260,behavior:"smooth"});
 }
 function exitEditMode(){
  E("btnAdd").textContent="Mahlzeit hinzufügen";
@@ -1217,7 +1190,7 @@ E("fabTemplate").addEventListener("click",function(){closeFab();jumpToSection("s
 E("fabWeight").addEventListener("click",function(){closeFab();jumpToSection("sectionWeight");});
 E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
 E("btnClearDraft").addEventListener("click",clearDraft);
-E("draftName").addEventListener("input",function(){if(!data.currentDraft)data.currentDraft={name:"",items:[]};data.currentDraft.name=this.value;save();});
+E("draftName").addEventListener("input",function(){ensureDraft();data.currentDraft.name=this.value;save();});
 render();
 })();
 </script>
