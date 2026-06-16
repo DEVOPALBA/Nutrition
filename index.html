@@ -213,6 +213,8 @@ window.zxingReady = true;
 <details class="box" id="sectionDraft" open>
 <summary>🍽 Aktuelle Mahlzeit</summary>
 <div class="detailsInner">
+<div style="display:none"><label>Name der Mahlzeit</label>
+<input id="draftName" type="text" placeholder="z. B. Frühstück, Mittagessen, Abendessen"></div>
 <div id="draftItems"></div>
 <div id="draftTotal" class="draftTotal">Noch keine Bestandteile hinzugefügt.</div>
 <button class="primary" id="btnSaveDraftMeal" type="button">Mahlzeit speichern</button>
@@ -384,7 +386,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v25";
+var KEY="ernaehrungs_dashboard_app_v25_fixed";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -1075,7 +1077,7 @@ function draftTotals(){
 }
 function addDraftItemFromValues(name, kalorien, protein, fett, kohlenhydrate){
  ensureDraft();
- 
+ data.currentDraft.name=String(E("draftName").value||data.currentDraft.name||"");
  data.currentDraft.items.push({
   id:uid(),
   name:name||"Bestandteil",
@@ -1098,7 +1100,9 @@ function removeDraftItem(index){
 }
 function renderDraft(){
  ensureDraft();
-  var list=E("draftItems");
+ var nameInput=E("draftName");
+ if(nameInput)nameInput.value=data.currentDraft.name||"";
+ var list=E("draftItems");
  if(!list)return;
  list.innerHTML="";
  if(!data.currentDraft.items.length){
