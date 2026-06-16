@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v28</title>
+<title>Ernährungs-Dashboard v29</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -446,7 +446,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v28";
+var KEY="ernaehrungs_dashboard_app_v29";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -1331,13 +1331,44 @@ function foodFromOFFProduct(p){
   source:"Open Food Facts"
  };
 }
+
 function fetchWithTimeout(url, ms){
  return new Promise(function(resolve,reject){
+  var controller=null;
+  try{controller=new AbortController();}catch(e){}
   var done=false;
-  var timer=setTimeout(function(){if(!done){done=true;reject(new Error("timeout"))}},ms);
-  fetch(url).then(function(r){if(!done){done=true;clearTimeout(timer);resolve(r)}}).catch(function(e){if(!done){done=true;clearTimeout(timer);reject(e)}});
+  var timer=setTimeout(function(){
+   if(!done){
+    done=true;
+    try{if(controller)controller.abort();}catch(e){}
+    reject(new Error("timeout"));
+   }
+  },ms);
+  fetch(url, controller?{signal:controller.signal, cache:"no-store"}:{cache:"no-store"}).then(function(r){
+   if(!done){done=true;clearTimeout(timer);resolve(r)}
+  }).catch(function(e){
+   if(!done){done=true;clearTimeout(timer);reject(e)}
+  });
  });
 }
+async function fetchJsonWithRetry(url, attempts, timeoutMs){
+ var lastError=null;
+ for(var i=0;i<attempts;i++){
+  try{
+   var response=await fetchWithTimeout(url, timeoutMs);
+   if(!response.ok)throw new Error("HTTP "+response.status);
+   return await response.json();
+  }catch(e){
+   lastError=e;
+   if(i<attempts-1){
+    await new Promise(function(resolve){setTimeout(resolve, 500 + i*700)});
+   }
+  }
+ }
+ throw lastError||new Error("request failed");
+}
+
+
 async function searchFood(){
  if(foodSearchRunning)return;
  var query=String(E("foodSearchInput").value||"").trim();
@@ -1356,38 +1387,49 @@ async function searchFood(){
  var results=localFoodMatches(query);
  if(results.length){
   renderFoodResults(dedupeFoods(results).slice(0,8));
-  status.textContent="Lokale Treffer gefunden. Online-Suche läuft noch...";
+  status.textContent="Lokale Treffer gefunden. Online-Suche wird ergänzt...";
  }
 
- var onlineWarning="";
+ var onlineOk=false;
  try{
-  var url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(query)+"&search_simple=1&action=process&json=1&page_size=8&fields=product_name,generic_name,brands,nutriments";
-  var response=await fetchWithTimeout(url,4500);
-  var json=await response.json();
+  var url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(query)+"&search_simple=1&action=process&json=1&page_size=12&fields=product_name,generic_name,brands,nutriments";
+  var json=await fetchJsonWithRetry(url,3,9000);
   if(json&&json.products){
    for(var i=0;i<json.products.length;i++){
     var f=foodFromOFFProduct(json.products[i]);
     if(f)results.push(f);
    }
+   onlineOk=true;
   }
- }catch(e){
-  onlineWarning="Online-Suche momentan nicht erreichbar oder zu langsam. Lokale/eigene Treffer werden angezeigt.";
+ }catch(e1){
+  try{
+   var url2="https://world.openfoodfacts.org/api/v2/search?search_terms="+encodeURIComponent(query)+"&page_size=12&fields=product_name,generic_name,brands,nutriments";
+   var json2=await fetchJsonWithRetry(url2,2,9000);
+   if(json2&&json2.products){
+    for(var j=0;j<json2.products.length;j++){
+     var f2=foodFromOFFProduct(json2.products[j]);
+     if(f2)results.push(f2);
+    }
+    onlineOk=true;
+   }
+  }catch(e2){}
  }
 
  results=dedupeFoods(results).slice(0,10);
  renderFoodResults(results);
 
  if(results.length){
-  status.className=onlineWarning?"foodStatus warn":"foodStatus";
-  status.textContent=onlineWarning||("Treffer: "+results.length);
+  status.className="foodStatus";
+  status.textContent=onlineOk ? ("Treffer: "+results.length) : ("Treffer: "+results.length+" · Online-Ergänzung aktuell langsam");
  }else{
   status.className="foodStatus warn";
-  status.textContent=onlineWarning||"Kein Treffer gefunden. Du kannst das Lebensmittel unten als eigenes Lebensmittel anlegen.";
+  status.textContent="Kein Treffer gefunden. Du kannst das Lebensmittel unten als eigenes Lebensmittel anlegen.";
  }
 
  foodSearchRunning=false;
  E("btnSearchFood").disabled=false;
 }
+
 function renderFoodResults(results){
  var box=E("foodResults");
  box.innerHTML="";
@@ -1634,6 +1676,7 @@ E("btnAddProductToDraft").addEventListener("click",addProductToDraft);
 E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
 E("btnClearDraft").addEventListener("click",clearDraft);
 E("btnSearchFood").addEventListener("click",searchFood);
+E("foodSearchInput").addEventListener("keydown",function(e){if(e.key==="Enter")searchFood();});
 E("foodAmountInput").addEventListener("input",function(){renderSelectedFood();});
 E("btnAddFoodToDraft").addEventListener("click",addSelectedFoodToDraft);
 E("btnSaveCustomFood").addEventListener("click",saveCustomFood);
