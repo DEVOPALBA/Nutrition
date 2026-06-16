@@ -26,7 +26,7 @@
 
 
 
-<title>Ernährungs-Dashboard v23</title>
+<title>Ernährungs-Dashboard v23-repair</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f4f6;color:#111827;padding-bottom:28px}
@@ -209,12 +209,12 @@ window.zxingReady = true;
 <div id="draftTotal" class="draftTotal">Noch keine Bestandteile hinzugefügt.</div>
 <button class="primary" id="btnSaveDraftMeal" type="button">Mahlzeit speichern</button>
 <button class="secondary" id="btnClearDraft" type="button">Aktuelle Mahlzeit leeren</button>
-<div class="smallNote">Scanner, manuelle Eingabe und Vorlagen fügen Bestandteile zu dieser aktuellen Mahlzeit hinzu. Erst „Mahlzeit speichern“ schreibt sie in die Tageshistorie.</div>
+<div class="smallNote">Diese Version ist bewusst vorsichtig: Manuelle Eingaben, Scanner und Vorlagen bleiben technisch unverändert. Zusätzlich kannst du Werte als aktuelle Mahlzeit sammeln und speichern.</div>
 </div>
 </details>
 
 <details class="box" id="sectionMeal" open>
-<summary>➕ Bestandteil manuell hinzufügen</summary>
+<summary>➕ Mahlzeit hinzufügen</summary>
 <div class="detailsInner">
 <label>Beschreibung</label><input id="inName" type="text" placeholder="z. B. Frühstück, Döner, Abendessen">
 <div class="grid">
@@ -223,7 +223,8 @@ window.zxingReady = true;
 <div><label>Fett</label><input id="inFett" type="number" inputmode="decimal" placeholder="20"></div>
 <div><label>Kohlenhydrate</label><input id="inKohlenhydrate" type="number" inputmode="decimal" placeholder="60"></div>
 </div>
-<button class="primary" id="btnAdd" type="button">Bestandteil hinzufügen</button>
+<button class="primary" id="btnAdd" type="button">Mahlzeit hinzufügen</button>
+<button class="secondary" id="btnAddToDraft" type="button">Zur aktuellen Mahlzeit hinzufügen</button>
 <button class="secondary" id="btnUndo" type="button">↩ Letzte Mahlzeit rückgängig</button>
 <div class="editNotice" id="editNotice">Bearbeitungsmodus aktiv</div>
 <button class="secondary" id="btnCancelEdit" type="button" style="display:none">Bearbeiten abbrechen</button>
@@ -311,6 +312,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 <input id="productPortion" type="number" inputmode="decimal" placeholder="100">
 
 <button class="primary" id="btnAddProduct" type="button">Produkt als Mahlzeit hinzufügen</button>
+<button class="secondary" id="btnAddProductToDraft" type="button">Produkt zur aktuellen Mahlzeit hinzufügen</button>
 </div>
 
 </div>
@@ -356,7 +358,7 @@ Der Scanner nutzt ZXing. Falls die Kamera trotzdem nicht startet, kannst du den 
 
 <script>
 (function(){
-var KEY="ernaehrungs_dashboard_app_v23_fixed";
+var KEY="ernaehrungs_dashboard_app_v22";
 function E(id){return document.getElementById(id)}
 function two(n){return n<10?"0"+n:""+n}
 function nowTime(){var d=new Date();return two(d.getHours())+":"+two(d.getMinutes())}
@@ -372,7 +374,7 @@ function defaults(){return{date:today(),goals:{kalorien:2000,protein:150,fett:70
 {name:"Proteinshake",kalorien:150,protein:30,fett:2,kohlenhydrate:5},
 {name:"Skyr",kalorien:200,protein:35,fett:1,kohlenhydrate:12},
 {name:"Hähnchen + Reis",kalorien:600,protein:50,fett:10,kohlenhydrate:75}
-],week:[],weights:[],currentDraft:{name:"",items:[]}}
+],week:[],weights:[]}}
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 function migrateOld(){
  var oldKeys=["ernaehrungs_dashboard_app_v3","ernaehrungs_dashboard_app_v2","ernaehrungs_dashboard_app_v1"];
@@ -483,12 +485,14 @@ function renderTemplates(){
  for(var i=0;i<data.templates.length;i++){
   var m=data.templates[i], item=document.createElement("div");
   item.className="templateItem";
-  item.innerHTML='<div class="templateTop"><span class="templateName">'+escapeHtml(m.name)+'</span><div class="templateActions"><button class="addSmall" type="button" data-add="'+i+'">+</button><button class="deleteSmall" type="button" data-del-template="'+i+'">Löschen</button></div></div>'+
+  item.innerHTML='<div class="templateTop"><span class="templateName">'+escapeHtml(m.name)+'</span><div class="templateActions"><button class="addSmall" type="button" data-add="'+i+'">+</button><button class="addSmall" type="button" data-draft-template="'+i+'">🍽</button><button class="deleteSmall" type="button" data-del-template="'+i+'">Löschen</button></div></div>'+
   '<div class="templateValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
   t.appendChild(item);
  }
  var addButtons=t.querySelectorAll("button[data-add]");
  for(var a=0;a<addButtons.length;a++){addButtons[a].onclick=function(){addTemplateMeal(parseInt(this.getAttribute("data-add"),10))}}
+ var draftButtons=t.querySelectorAll("button[data-draft-template]");
+ for(var dt=0;dt<draftButtons.length;dt++){draftButtons[dt].onclick=function(){addTemplateToDraft(parseInt(this.getAttribute("data-draft-template"),10))}}
  var delButtons=t.querySelectorAll("button[data-del-template]");
  for(var d=0;d<delButtons.length;d++){delButtons[d].onclick=function(){deleteTemplate(parseInt(this.getAttribute("data-del-template"),10))}}
 }
@@ -497,9 +501,8 @@ function renderHistory(){
  if(!data.meals.length){h.innerHTML='<div class="empty">Noch keine Mahlzeit eingetragen.</div>';return}
  for(var i=data.meals.length-1;i>=0;i--){
   var m=data.meals[i], name=m.name?escapeHtml(m.name):"Mahlzeit", item=document.createElement("div");
-  var parts=(m.items&&m.items.length)?(" · "+m.items.length+" Bestandteile"):"";
   item.className="historyItem";
-  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+parts+'</span></span><div class="historyActions"><button class="starSmall" type="button" data-template-meal="'+i+'">⭐ Vorlage</button><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></div>'+
+  item.innerHTML='<div class="historyTop"><span><span class="mealName">'+name+'</span><span class="mealTime">'+m.time+'</span></span><div class="historyActions"><button class="starSmall" type="button" data-template-meal="'+i+'">⭐ Vorlage</button><button class="editSmall" type="button" data-edit="'+i+'">Bearbeiten</button><button class="deleteSmall" type="button" data-index="'+i+'">Löschen</button></div></div>'+
   '<div class="historyValues">🔥 '+nice(m.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(m.protein)+' g Protein<br>🥑 '+nice(m.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(m.kohlenhydrate)+' g Kohlenhydrate</div>';
   h.appendChild(item);
  }
@@ -671,106 +674,6 @@ function clearTemplateInputs(){E("tplName").value="";E("tplKalorien").value="";E
 
 
 
-
-function ensureDraft(){
- if(!data.currentDraft)data.currentDraft={name:"",items:[]};
- if(!data.currentDraft.items)data.currentDraft.items=[];
-}
-function draftTotals(){
- ensureDraft();
- var t={kalorien:0,protein:0,fett:0,kohlenhydrate:0};
- for(var i=0;i<data.currentDraft.items.length;i++){
-  t.kalorien+=Number(data.currentDraft.items[i].kalorien)||0;
-  t.protein+=Number(data.currentDraft.items[i].protein)||0;
-  t.fett+=Number(data.currentDraft.items[i].fett)||0;
-  t.kohlenhydrate+=Number(data.currentDraft.items[i].kohlenhydrate)||0;
- }
- return t;
-}
-function addDraftItem(item){
- ensureDraft();
- data.currentDraft.name=String(E("draftName").value||data.currentDraft.name||"");
- if(!item.name)item.name="Bestandteil";
- item.id=uid();
- data.currentDraft.items.push(item);
- render();
- show("Bestandteil hinzugefügt");
-}
-function removeDraftItem(index){
- ensureDraft();
- if(index<0||index>=data.currentDraft.items.length)return;
- data.currentDraft.items.splice(index,1);
- render();
- show("Bestandteil gelöscht");
-}
-function renderDraft(){
- ensureDraft();
- E("draftName").value=data.currentDraft.name||"";
- var list=E("draftItems");
- list.innerHTML="";
- if(!data.currentDraft.items.length){
-  list.innerHTML='<div class="empty">Noch keine Bestandteile hinzugefügt.</div>';
- }else{
-  for(var i=0;i<data.currentDraft.items.length;i++){
-   var it=data.currentDraft.items[i];
-   var div=document.createElement("div");
-   div.className="draftItem";
-   div.innerHTML='<div class="draftTop"><span class="draftName">'+escapeHtml(it.name||"Bestandteil")+'</span><button class="deleteSmall" type="button" data-draft-del="'+i+'">Löschen</button></div>'+
-   '<div class="draftValues">🔥 '+nice(it.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(it.protein)+' g Protein<br>🥑 '+nice(it.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(it.kohlenhydrate)+' g Kohlenhydrate</div>';
-   list.appendChild(div);
-  }
- }
- var buttons=list.querySelectorAll("button[data-draft-del]");
- for(var b=0;b<buttons.length;b++){buttons[b].onclick=function(){removeDraftItem(parseInt(this.getAttribute("data-draft-del"),10))}}
- var t=draftTotals();
- E("draftTotal").innerHTML=data.currentDraft.items.length?
-  'Gesamt: 🔥 '+nice(t.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(t.protein)+' g Protein<br>🥑 '+nice(t.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(t.kohlenhydrate)+' g Kohlenhydrate':
-  'Noch keine Bestandteile hinzugefügt.';
-}
-function saveDraftMeal(){
- ensureDraft();
- if(!data.currentDraft.items.length){
-  alert("Bitte zuerst Bestandteile hinzufügen.");
-  return;
- }
- var name=String(E("draftName").value||data.currentDraft.name||"").trim();
- if(!name)name="Mahlzeit";
- var t=draftTotals();
- data.meals.push({
-  id:uid(),
-  time:nowTime(),
-  name:name,
-  kalorien:Math.round(t.kalorien*10)/10,
-  protein:Math.round(t.protein*10)/10,
-  fett:Math.round(t.fett*10)/10,
-  kohlenhydrate:Math.round(t.kohlenhydrate*10)/10,
-  items:data.currentDraft.items.slice()
- });
- data.currentDraft={name:"",items:[]};
- render();
- show("Mahlzeit gespeichert");
-}
-function clearDraft(){
- ensureDraft();
- if(data.currentDraft.items.length&&!confirm("Aktuelle Mahlzeit wirklich leeren?"))return;
- data.currentDraft={name:"",items:[]};
- render();
- show("Aktuelle Mahlzeit geleert");
-}
-function saveMealAsTemplate(index){
- if(index<0||index>=data.meals.length)return;
- var m=data.meals[index];
- data.templates.push({
-  name:m.name||"Mahlzeit",
-  kalorien:Number(m.kalorien)||0,
-  protein:Number(m.protein)||0,
-  fett:Number(m.fett)||0,
-  kohlenhydrate:Number(m.kohlenhydrate)||0
- });
- render();
- show("Als Vorlage gespeichert");
-}
-
 var scannerControls=null;
 var scannerReader=null;
 var scannerActive=false;
@@ -909,14 +812,18 @@ function addProductMeal(){
  }
  var portion=Number(String(E("productPortion").value||"100").replace(",","."))||100;
  var factor=portion/100;
- addDraftItem({
+ var m={
+  id:uid(),
+  time:nowTime(),
   name:currentProduct.name+" ("+nice(portion)+" g)",
   kalorien:Math.round(currentProduct.kcal100*factor*10)/10,
   protein:Math.round(currentProduct.protein100*factor*10)/10,
   fett:Math.round(currentProduct.fett100*factor*10)/10,
   kohlenhydrate:Math.round(currentProduct.kh100*factor*10)/10
- });
- jumpToSection("sectionDraft");
+ };
+ data.meals.push(m);
+ render();
+ show("Produkt hinzugefügt");
 }
 
 function editMeal(index){
@@ -961,15 +868,47 @@ function add(){
   return;
  }
 
- if(!m.name)m.name="Bestandteil";
- addDraftItem(m);
+ data.meals.push(m);clearInputs();render();show("Mahlzeit hinzugefügt");
+}
+
+function addTemplateToDraft(index){
+ var t=data.templates[index];
+ if(!t)return;
+ addDraftItemFromValues(t.name, t.kalorien, t.protein, t.fett, t.kohlenhydrate);
+ jumpToSection("sectionDraft");
+}
+function addManualToDraft(){
+ addDraftItemFromValues(
+  String(E("inName").value||"Bestandteil").trim(),
+  val("inKalorien"),
+  val("inProtein"),
+  val("inFett"),
+  val("inKohlenhydrate")
+ );
  clearInputs();
  jumpToSection("sectionDraft");
 }
+function addProductToDraft(){
+ if(!currentProduct){
+  alert("Bitte zuerst ein Produkt suchen.");
+  return;
+ }
+ var portion=Number(String(E("productPortion").value||"100").replace(",","."))||100;
+ var factor=portion/100;
+ addDraftItemFromValues(
+  currentProduct.name+" ("+nice(portion)+" g)",
+  Math.round(currentProduct.kcal100*factor*10)/10,
+  Math.round(currentProduct.protein100*factor*10)/10,
+  Math.round(currentProduct.fett100*factor*10)/10,
+  Math.round(currentProduct.kh100*factor*10)/10
+ );
+ jumpToSection("sectionDraft");
+}
+
 function addTemplateMeal(index){
  var t=data.templates[index]; if(!t)return;
- addDraftItem({name:t.name,kalorien:Number(t.kalorien)||0,protein:Number(t.protein)||0,fett:Number(t.fett)||0,kohlenhydrate:Number(t.kohlenhydrate)||0});
- jumpToSection("sectionDraft");
+ data.meals.push({id:uid(),time:nowTime(),name:t.name,kalorien:Number(t.kalorien)||0,protein:Number(t.protein)||0,fett:Number(t.fett)||0,kohlenhydrate:Number(t.kohlenhydrate)||0});
+ render();show("Vorlage hinzugefügt");
 }
 function saveTemplate(){
  var name=String(E("tplName").value||"").trim();
@@ -1082,6 +1021,113 @@ function renderWeightChart(){
  '<path class="trendLine" d="'+path+'"></path>'+circles+labels+'</svg>';
 }
 
+
+function ensureDraft(){
+ if(!data.currentDraft)data.currentDraft={name:"",items:[]};
+ if(!data.currentDraft.items)data.currentDraft.items=[];
+}
+function draftTotals(){
+ ensureDraft();
+ var t={kalorien:0,protein:0,fett:0,kohlenhydrate:0};
+ for(var i=0;i<data.currentDraft.items.length;i++){
+  t.kalorien+=Number(data.currentDraft.items[i].kalorien)||0;
+  t.protein+=Number(data.currentDraft.items[i].protein)||0;
+  t.fett+=Number(data.currentDraft.items[i].fett)||0;
+  t.kohlenhydrate+=Number(data.currentDraft.items[i].kohlenhydrate)||0;
+ }
+ return t;
+}
+function addDraftItemFromValues(name, kalorien, protein, fett, kohlenhydrate){
+ ensureDraft();
+ data.currentDraft.name=String(E("draftName").value||data.currentDraft.name||"");
+ data.currentDraft.items.push({
+  id:uid(),
+  name:name||"Bestandteil",
+  kalorien:Number(kalorien)||0,
+  protein:Number(protein)||0,
+  fett:Number(fett)||0,
+  kohlenhydrate:Number(kohlenhydrate)||0
+ });
+ save();
+ renderDraft();
+ show("Bestandteil zur aktuellen Mahlzeit hinzugefügt");
+}
+function removeDraftItem(index){
+ ensureDraft();
+ if(index<0||index>=data.currentDraft.items.length)return;
+ data.currentDraft.items.splice(index,1);
+ save();
+ renderDraft();
+ show("Bestandteil gelöscht");
+}
+function renderDraft(){
+ ensureDraft();
+ var nameInput=E("draftName");
+ if(nameInput)nameInput.value=data.currentDraft.name||"";
+ var list=E("draftItems");
+ if(!list)return;
+ list.innerHTML="";
+ if(!data.currentDraft.items.length){
+  list.innerHTML='<div class="empty">Noch keine Bestandteile hinzugefügt.</div>';
+ }else{
+  for(var i=0;i<data.currentDraft.items.length;i++){
+   var it=data.currentDraft.items[i];
+   var div=document.createElement("div");
+   div.className="draftItem";
+   div.innerHTML='<div class="draftTop"><span class="draftName">'+escapeHtml(it.name||"Bestandteil")+'</span><button class="deleteSmall" type="button" data-draft-del="'+i+'">Löschen</button></div>'+
+   '<div class="draftValues">🔥 '+nice(it.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(it.protein)+' g Protein<br>🥑 '+nice(it.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(it.kohlenhydrate)+' g Kohlenhydrate</div>';
+   list.appendChild(div);
+  }
+ }
+ var buttons=list.querySelectorAll("button[data-draft-del]");
+ for(var b=0;b<buttons.length;b++){buttons[b].onclick=function(){removeDraftItem(parseInt(this.getAttribute("data-draft-del"),10))}}
+ var t=draftTotals();
+ E("draftTotal").innerHTML=data.currentDraft.items.length?
+  'Gesamt: 🔥 '+nice(t.kalorien)+' kcal &nbsp; | &nbsp; 🥩 '+nice(t.protein)+' g Protein<br>🥑 '+nice(t.fett)+' g Fett &nbsp; | &nbsp; 🍞 '+nice(t.kohlenhydrate)+' g Kohlenhydrate':
+  'Noch keine Bestandteile hinzugefügt.';
+}
+function saveDraftMeal(){
+ ensureDraft();
+ if(!data.currentDraft.items.length){
+  alert("Bitte zuerst Bestandteile hinzufügen.");
+  return;
+ }
+ var name=String(E("draftName").value||data.currentDraft.name||"").trim()||"Mahlzeit";
+ var t=draftTotals();
+ data.meals.push({
+  id:uid(),
+  time:nowTime(),
+  name:name,
+  kalorien:Math.round(t.kalorien*10)/10,
+  protein:Math.round(t.protein*10)/10,
+  fett:Math.round(t.fett*10)/10,
+  kohlenhydrate:Math.round(t.kohlenhydrate*10)/10
+ });
+ data.currentDraft={name:"",items:[]};
+ render();
+ show("Aktuelle Mahlzeit gespeichert");
+}
+function clearDraft(){
+ ensureDraft();
+ if(data.currentDraft.items.length&&!confirm("Aktuelle Mahlzeit wirklich leeren?"))return;
+ data.currentDraft={name:"",items:[]};
+ render();
+ show("Aktuelle Mahlzeit geleert");
+}
+function saveMealAsTemplate(index){
+ if(index<0||index>=data.meals.length)return;
+ var m=data.meals[index];
+ data.templates.push({
+  name:m.name||"Mahlzeit",
+  kalorien:Number(m.kalorien)||0,
+  protein:Number(m.protein)||0,
+  fett:Number(m.fett)||0,
+  kohlenhydrate:Number(m.kohlenhydrate)||0
+ });
+ render();
+ show("Als Vorlage gespeichert");
+}
+
 function createBackup(){
  recalc();
  var backup={
@@ -1183,14 +1229,16 @@ E("btnStopScanner").addEventListener("click",stopScanner);
 E("btnLookupBarcode").addEventListener("click",function(){lookupBarcode();});
 E("productPortion").addEventListener("input",renderProductPreview);
 E("btnAddProduct").addEventListener("click",addProductMeal);
+E("btnAddToDraft").addEventListener("click",addManualToDraft);
+E("btnAddProductToDraft").addEventListener("click",addProductToDraft);
+E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
+E("btnClearDraft").addEventListener("click",clearDraft);
+E("draftName").addEventListener("input",function(){ensureDraft();data.currentDraft.name=this.value;save();});
 E("fabMain").addEventListener("click",toggleFab);
 E("fabScan").addEventListener("click",jumpToScannerAndStart);
 E("fabMeal").addEventListener("click",function(){closeFab();jumpToSection("sectionMeal");});
 E("fabTemplate").addEventListener("click",function(){closeFab();jumpToSection("sectionTemplates");});
 E("fabWeight").addEventListener("click",function(){closeFab();jumpToSection("sectionWeight");});
-E("btnSaveDraftMeal").addEventListener("click",saveDraftMeal);
-E("btnClearDraft").addEventListener("click",clearDraft);
-E("draftName").addEventListener("input",function(){ensureDraft();data.currentDraft.name=this.value;save();});
 render();
 })();
 </script>
